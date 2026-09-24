@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "cruise": {
+      "serverUrl": "https://cruise.bytesbrains.net/mcp/sse"
+    }
+  }
+}
