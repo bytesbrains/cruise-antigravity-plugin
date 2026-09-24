@@ -95,4 +95,47 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
       expect(fs.existsSync(path.join(assetsDir, file))).toBe(true);
     }
   });
+
+  it("root AGENT.md exists and adheres to size budget (<450 lines)", () => {
+    const agentMdPath = path.join(ROOT, "AGENT.md");
+    expect(fs.existsSync(agentMdPath)).toBe(true);
+
+    const content = fs.readFileSync(agentMdPath, "utf-8");
+    const lineCount = content.split("\n").length;
+    expect(lineCount).toBeLessThan(450);
+    expect(content).toContain("CRUISE_API_KEY");
+    expect(content).toContain("npm test");
+  });
+
+  it(".github/dependabot.yml configures npm and github-actions updates", () => {
+    const dependabotPath = path.join(ROOT, ".github/dependabot.yml");
+    expect(fs.existsSync(dependabotPath)).toBe(true);
+
+    const content = fs.readFileSync(dependabotPath, "utf-8");
+    expect(content).toContain('package-ecosystem: "npm"');
+    expect(content).toContain('package-ecosystem: "github-actions"');
+  });
+
+  it("community templates and conduct files are present", () => {
+    expect(fs.existsSync(path.join(ROOT, "CODE_OF_CONDUCT.md"))).toBe(true);
+    expect(fs.existsSync(path.join(ROOT, ".github/PULL_REQUEST_TEMPLATE.md"))).toBe(true);
+    expect(
+      fs.existsSync(path.join(ROOT, ".github/ISSUE_TEMPLATE/bug_report.yml"))
+    ).toBe(true);
+    expect(
+      fs.existsSync(path.join(ROOT, ".github/ISSUE_TEMPLATE/feature_request.yml"))
+    ).toBe(true);
+  });
+
+  it(".github/workflows/wrokin-hunter.yml specifies concurrency and timeout-minutes", () => {
+    const hunterWorkflowPath = path.join(
+      ROOT,
+      ".github/workflows/wrokin-hunter.yml"
+    );
+    expect(fs.existsSync(hunterWorkflowPath)).toBe(true);
+
+    const content = fs.readFileSync(hunterWorkflowPath, "utf-8");
+    expect(content).toContain("concurrency:");
+    expect(content).toContain("timeout-minutes:");
+  });
 });

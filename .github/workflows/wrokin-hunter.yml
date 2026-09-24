@@ -30,6 +30,10 @@ on:
         type: choice
         options: [foray, stakeout, expedition]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   packages: read # pull the wrokin-hunter image from GHCR
@@ -38,6 +42,7 @@ permissions:
 
 jobs:
   hunt:
+    timeout-minutes: 15
     # Don't even start a runner for an automatic PR run on a repo set to on-demand
     # (#450). wrokin keeps ${{ vars.WROKIN_HUNT_AUTO }} in step with your dashboard
     # setting; a job skipped by `if:` is never scheduled, so an on-demand repo costs
