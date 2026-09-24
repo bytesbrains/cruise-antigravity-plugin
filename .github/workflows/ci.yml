@@ -1,0 +1,51 @@
+# Types, tests and secrets scan on every PR and on main.
+#
+# There is no automated publish step: a release is a person cutting a `v*` tag
+# on main (CONTRIBUTING.md → Releasing).
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          # The token stays out of .git/config, where every later step (npm
+          # install scripts included) could read it. Nothing here pushes.
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Types
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
+
+      # Third-party, so pinned to a commit: a tag can be moved. The token is
+      # what it lists a pull request's commits with (read-only here).
+      - name: Secrets scan
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

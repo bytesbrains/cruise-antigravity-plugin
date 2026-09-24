@@ -1,0 +1,18 @@
+{
+  // The plugin itself is JSON and Markdown; what is TypeScript here is its
+  // test, which runs in Node. `npm run typecheck` checks it.
+  "compilerOptions": {
+    "target": "es2023",
+    "lib": ["es2023"],
+    "types": ["node"],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["test/**/*.ts", "vitest.config.mts"]
+}

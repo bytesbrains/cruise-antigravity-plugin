@@ -1,0 +1,11 @@
+node_modules/
+
+# Secrets never enter this repo. A Cruise key belongs in the environment of the
+# machine that uses it — never in git, never in a settings file.
+.env
+.env.*
+*.pem
+*.key
+
+*.log
+.DS_Store
