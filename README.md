@@ -1,9 +1,6 @@
 <p align="center">
   <a href="https://bytesbrains.com/cruise">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="assets/cruise-logo.svg">
-      <img src="assets/cruise-logo.svg" alt="BytesBrains Cruise" width="380">
-    </picture>
+    <img src="assets/cruise-logo.svg" alt="BytesBrains Cruise" width="380">
   </a>
 </p>
 
@@ -114,5 +111,14 @@ export CRUISE_API_KEY="cru_live_..."
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
+
+<p align="left">
+  <a href="https://bytesbrains.com">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="assets/bytesbrains_dark_logo.png">
+      <img src="assets/bytesbrains_light_logo.png" alt="BytesBrains" width="160">
+    </picture>
+  </a>
+</p>
 
 [Apache-2.0](LICENSE) © 2026 BytesBrains Pte. Ltd.

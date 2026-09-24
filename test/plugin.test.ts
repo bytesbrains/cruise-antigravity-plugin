@@ -48,17 +48,18 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     expect(content).toContain("budget_exhausted");
   });
 
+  const extractFrontmatter = (content: string): string | null => {
+    const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+    return match ? match[1] : null;
+  };
+
   it("plugins/cruise/skills/cruise/SKILL.md has valid frontmatter and runbook instructions", () => {
     const skillPath = path.join(ROOT, "plugins/cruise/skills/cruise/SKILL.md");
     expect(fs.existsSync(skillPath)).toBe(true);
 
     const content = fs.readFileSync(skillPath, "utf-8");
-    expect(content.startsWith("---")).toBe(true);
-
-    const frontmatterEnd = content.indexOf("---", 3);
-    expect(frontmatterEnd).toBeGreaterThan(3);
-
-    const frontmatter = content.slice(3, frontmatterEnd);
+    const frontmatter = extractFrontmatter(content);
+    expect(frontmatter).not.toBeNull();
     expect(frontmatter).toContain("name: cruise");
     expect(frontmatter).toContain("description:");
     expect(content).toContain("bb/agentic-coding");
@@ -71,12 +72,8 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     expect(fs.existsSync(setupSkillPath)).toBe(true);
 
     const content = fs.readFileSync(setupSkillPath, "utf-8");
-    expect(content.startsWith("---")).toBe(true);
-
-    const frontmatterEnd = content.indexOf("---", 3);
-    expect(frontmatterEnd).toBeGreaterThan(3);
-
-    const frontmatter = content.slice(3, frontmatterEnd);
+    const frontmatter = extractFrontmatter(content);
+    expect(frontmatter).not.toBeNull();
     expect(frontmatter).toContain("name: cruise-setup");
     expect(frontmatter).toContain("description:");
     expect(content).toContain("CRUISE_API_KEY");
