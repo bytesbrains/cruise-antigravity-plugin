@@ -19,8 +19,8 @@
     "secrets:scan": "gitleaks detect --source . --redact --no-banner --config .gitleaks.toml"
   },
   "devDependencies": {
-    "@types/node": "^22.20.4",
     "typescript": "^7.0.2",
+    "@types/node": "^26.6.2",
     "vitest": "4.1.11"
   }
 }
