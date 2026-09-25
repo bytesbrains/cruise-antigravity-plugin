@@ -73,6 +73,7 @@ Run through this verification checklist to confirm setup:
    Check if the agent has access to Cruise MCP tools:
    - `list_models` — Should list available lanes (`bb/agentic-coding`, `bb/chat-assistant`, etc.)
    - `get_budget` — Should display the active project budget, current spend, and threshold status.
+   - `get_spend` — Should display cumulative settled ledger spend for the project.
 3. **Smoke Test Request**:
    Perform a simple prompt with the configured lane:
    ```sh

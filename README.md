@@ -28,7 +28,7 @@ Brings intelligent AI model routing, budget caps, rate limiting, and observabili
 ```text
 plugins/cruise/
 ├── plugin.json       # Plugin manifest declaring metadata & version
-├── mcp_config.json   # Remote SSE MCP configuration for Cruise tools
+├── mcp_config.json   # Remote MCP configuration for Cruise tools
 ├── rules/
 │   └── AGENTS.md     # Cruise usage rules, safety invariants, and refusal policies
 └── skills/
