@@ -10,7 +10,7 @@ The plugin equips Antigravity with intelligent model routing, rate-limit resilie
 
 - `plugins/cruise/`: Plugin bundle discovered by Antigravity workspaces (`.agents/plugins/cruise`) and global config (`~/.gemini/config/plugins/cruise`).
   - `plugin.json`: Plugin manifest (name, description, version, author). Version matches `package.json`.
-  - `mcp_config.json`: Remote SSE MCP configuration pointing to Cruise gateway (`https://cruise.bytesbrains.net/mcp/sse`).
+  - `mcp_config.json`: Remote MCP configuration pointing to Cruise gateway (`https://cruise.bytesbrains.net/mcp`) with dynamic Bearer auth.
   - `rules/AGENTS.md`: Operational usage rules, credential invariants, lane routing, and refusal handling.
   - `skills/cruise/SKILL.md`: Lane selection and refusal runbooks.
   - `skills/setup/SKILL.md`: BYOK endpoint setup and verification procedures.

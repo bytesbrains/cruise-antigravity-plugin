@@ -1,7 +1,10 @@
 {
   "mcpServers": {
     "cruise": {
-      "serverUrl": "https://cruise.bytesbrains.net/mcp/sse"
+      "serverUrl": "${CRUISE_BASE_URL:-https://cruise.bytesbrains.net}/mcp",
+      "headers": {
+        "Authorization": "Bearer ${CRUISE_API_KEY}"
+      }
     }
   }
 }
