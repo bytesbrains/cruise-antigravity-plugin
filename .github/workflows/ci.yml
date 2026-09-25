@@ -43,9 +43,19 @@ jobs:
       - name: Tests
         run: npm test
 
+      # Install Gitleaks binary to execute repo-native npm run secrets:scan
+      - name: Install gitleaks
+        run: |
+          GITLEAKS_VERSION="8.24.3"
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | sudo tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      - name: Secrets scan (npm run secrets:scan)
+        run: npm run secrets:scan
+
       # Third-party, so pinned to a commit: a tag can be moved. The token is
       # what it lists a pull request's commits with (read-only here).
-      - name: Secrets scan
+      - name: Secrets scan (SARIF report)
         uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

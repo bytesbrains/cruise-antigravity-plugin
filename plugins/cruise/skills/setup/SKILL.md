@@ -1,9 +1,9 @@
 ---
 name: cruise-setup
 description: >-
-  Interactive setup, onboarding, and verification runbook for BytesBrains Cruise in Antigravity.
+  Use this skill when onboarding, configuring, or verifying BytesBrains Cruise in Antigravity IDE or the agy CLI.
   Walks through configuring CRUISE_API_KEY and CRUISE_BASE_URL, rehearsing on the free demo environment,
-  and testing MCP tool connectivity without exposing secrets.
+  and testing MCP tool connectivity without exposing credentials.
 ---
 
 # Cruise Setup & Verification Runbook
