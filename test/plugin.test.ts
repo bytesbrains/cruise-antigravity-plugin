@@ -259,6 +259,26 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     expect(content).toContain("get_spend");
     expect(content).toContain("401");
     expect(content).toContain("403");
+
+    // Verify paths referenced in setup skill resolve to existing repository files
+    const referencedMcpConfig = path.join(ROOT, "plugins/cruise/mcp_config.json");
+    expect(fs.existsSync(referencedMcpConfig)).toBe(true);
+
+    // Verify consistency of all 4 lanes between skills and AGENTS.md rules
+    const rulesContent = fs.readFileSync(
+      path.join(ROOT, "plugins/cruise/rules/AGENTS.md"),
+      "utf-8"
+    );
+    const lanes = [
+      "bb/agentic-coding",
+      "bb/chat-assistant",
+      "bb/extraction",
+      "bb/fast",
+    ];
+    for (const lane of lanes) {
+      expect(content).toContain(lane);
+      expect(rulesContent).toContain(lane);
+    }
   });
 
   it("assets directory contains all required logo files", () => {
