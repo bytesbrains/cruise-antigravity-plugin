@@ -180,7 +180,7 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     expect(getSpendReq.body.params.name).toBe("get_spend");
   });
 
-  it("plugins/cruise/rules/AGENTS.md exists and adheres to size constraints", () => {
+  it("plugins/cruise/rules/AGENTS.md exists, adheres to size constraints, and defines all operational rules", () => {
     const rulesPath = path.join(ROOT, "plugins/cruise/rules/AGENTS.md");
     expect(fs.existsSync(rulesPath)).toBe(true);
 
@@ -190,9 +190,38 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     expect(stats.size).toBeGreaterThan(0);
 
     const content = fs.readFileSync(rulesPath, "utf-8");
+
+    // Requirement 1: Virtual Key Hygiene & Invariants
+    expect(content).toContain("cru_");
     expect(content).toContain("CRUISE_API_KEY");
+    expect(content).toMatch(/OpenAI|Anthropic|Google AI Studio|Mistral/);
+    expect(content).toMatch(/never accept|never prompt|never expose/i);
+
+    // Requirement 2: Dynamic Catalogue Resolution & Lanes
+    expect(content).toMatch(/never hardcode|not hardcode/i);
+    expect(content).toContain("/v1/models");
+    expect(content).toContain("list_models");
     expect(content).toContain("bb/agentic-coding");
+    expect(content).toContain("bb/chat-assistant");
+    expect(content).toContain("bb/extraction");
+    expect(content).toContain("bb/fast");
+    expect(content).toContain("x-cruise.any_member");
+
+    // Requirement 3: Network Boundary & Zero Telemetry
+    expect(content).toMatch(/zero (secondary connections|telemetry)|no telemetry/i);
+    expect(content).toContain("CRUISE_BASE_URL");
+
+    // Requirement 4: Refusal & Error Surfacing
+    expect(content).toContain("error.code");
     expect(content).toContain("budget_exhausted");
+    expect(content).toContain("wallet_exhausted");
+    expect(content).toContain("rate_limit_exceeded");
+    expect(content).toContain("429");
+    expect(content).toContain("402");
+
+    // Requirement 5: Rehearsal Convention
+    expect(content).toContain("cruise-demo.bytesbrains.net");
+    expect(content).toContain("cru_demo_");
   });
 
   const extractFrontmatter = (content: string): string | null => {
