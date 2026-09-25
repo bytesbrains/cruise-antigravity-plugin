@@ -114,7 +114,7 @@ Verify endpoint authentication and chat completion formatting:
 ```sh
 # 1. Set demo environment variables
 export CRUISE_BASE_URL="https://cruise-demo.bytesbrains.net"
-export CRUISE_API_KEY="cru_demo_rehearsal_key"
+export CRUISE_API_KEY="cru_demo_..."
 
 # 2. Verify model catalogue resolution
 curl -s "${CRUISE_BASE_URL}/v1/models" \

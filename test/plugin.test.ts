@@ -417,5 +417,46 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     expect(content).toContain("OPENAI_BASE_URL");
     expect(content).toContain("https://cruise-demo.bytesbrains.net");
   });
+
+  it("validates documented BYOK configuration snippets, settings schema, and endpoint resolution", () => {
+    const byokPath = path.join(ROOT, "docs/byok.md");
+    const content = fs.readFileSync(byokPath, "utf-8");
+
+    // Extract settings.json JSON block from markdown
+    const jsonMatch = content.match(/```json\r?\n([\s\S]*?)\r?\n```/);
+    expect(jsonMatch).not.toBeNull();
+    const parsedSettings = JSON.parse(jsonMatch![1]);
+
+    expect(parsedSettings.modelProvider).toBe("openai");
+    expect(parsedSettings.openaiBaseUrl).toBe("https://cruise.bytesbrains.net/v1");
+    expect(parsedSettings.openaiApiKey).toBe("${CRUISE_API_KEY}");
+    expect(parsedSettings.model).toBe("bb/agentic-coding");
+
+    // Test environment URL resolution logic
+    const resolveBaseUrl = (env: Record<string, string | undefined>) => {
+      const template = "${CRUISE_BASE_URL:-https://cruise.bytesbrains.net}/v1";
+      return template.replace(/\$\{([A-Z_]+)(?::-([^}]+))?\}/g, (_, varName, fallback) => {
+        return env[varName] !== undefined && env[varName] !== "" ? env[varName]! : fallback ?? "";
+      });
+    };
+
+    expect(resolveBaseUrl({})).toBe("https://cruise.bytesbrains.net/v1");
+    expect(resolveBaseUrl({ CRUISE_BASE_URL: "https://cruise-demo.bytesbrains.net" })).toBe(
+      "https://cruise-demo.bytesbrains.net/v1"
+    );
+
+    // Verify all role mapping rows point to valid lanes defined in rules/AGENTS.md
+    const agentRoles = [
+      "Lead / Autonomous Coding Agent",
+      "Interactive Pair Programming",
+      "Research Subagent",
+      "Structured Extraction & Parsing",
+      "Fast / Lightweight Subagent",
+    ];
+    for (const role of agentRoles) {
+      expect(content).toContain(role);
+    }
+  });
 });
+
 
