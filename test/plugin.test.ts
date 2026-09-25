@@ -369,4 +369,53 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     expect(content).toContain("concurrency:");
     expect(content).toContain("timeout-minutes:");
   });
+
+  it("docs/byok.md exists, adheres to size budget (<450 lines), and covers all BYOK requirements", () => {
+    const byokPath = path.join(ROOT, "docs/byok.md");
+    expect(fs.existsSync(byokPath)).toBe(true);
+
+    const content = fs.readFileSync(byokPath, "utf-8");
+    const lineCount = content.split("\n").length;
+    expect(lineCount).toBeLessThan(450);
+    expect(lineCount).toBeGreaterThan(50);
+
+    // Section 1: CLI (agy) BYOK Configuration
+    expect(content).toContain("OPENAI_BASE_URL");
+    expect(content).toContain("OPENAI_API_KEY");
+    expect(content).toContain("~/.gemini/antigravity-cli/settings.json");
+    expect(content).toContain("modelProvider");
+    expect(content).toContain("openaiBaseUrl");
+
+    // Section 2: Antigravity IDE Integration
+    expect(content).toContain("Antigravity IDE");
+    expect(content).toMatch(/Custom Provider|OpenAI Compatible/i);
+
+    // Section 3: Demo Rehearsal Guide
+    expect(content).toContain("https://cruise-demo.bytesbrains.net");
+    expect(content).toContain("curl");
+    expect(content).toContain("v1/chat/completions");
+    expect(content).toContain("v1/models");
+
+    // Section 4: Lane Selection Mapping for Agent Roles
+    const requiredLanes = [
+      "bb/agentic-coding",
+      "bb/chat-assistant",
+      "bb/extraction",
+      "bb/fast",
+    ];
+    for (const lane of requiredLanes) {
+      expect(content).toContain(lane);
+    }
+  });
+
+  it("README.md links to docs/byok.md and outlines BYOK capabilities", () => {
+    const readmePath = path.join(ROOT, "README.md");
+    const content = fs.readFileSync(readmePath, "utf-8");
+
+    expect(content).toContain("docs/byok.md");
+    expect(content).toContain("BYOK & Model Provider Routing");
+    expect(content).toContain("OPENAI_BASE_URL");
+    expect(content).toContain("https://cruise-demo.bytesbrains.net");
+  });
 });
+

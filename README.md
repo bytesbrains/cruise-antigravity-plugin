@@ -106,6 +106,17 @@ export CRUISE_API_KEY="cru_live_..."
 > [!IMPORTANT]
 > Keep `CRUISE_API_KEY` strictly in your shell environment or secret store. Never commit credentials to version control or settings files.
 
+## BYOK & Model Provider Routing
+
+Route your Antigravity IDE and CLI (`agy`) sessions through Cruise's OpenAI-compatible gateway:
+
+- **Antigravity CLI (`agy`)**: Configure via `OPENAI_BASE_URL` and `OPENAI_API_KEY` environment variables or `~/.gemini/antigravity-cli/settings.json`.
+- **Antigravity IDE**: Step-by-step custom OpenAI-compatible provider setup.
+- **Zero-Cost Demo Rehearsal**: Reproducible verification recipes using `curl` and `agy` against `https://cruise-demo.bytesbrains.net`.
+- **Role-to-Lane Mapping**: Virtual lanes (`bb/agentic-coding`, `bb/chat-assistant`, `bb/extraction`, `bb/fast`) mapped to Antigravity agent roles.
+
+📖 See the complete guide: [docs/byok.md](docs/byok.md)
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
