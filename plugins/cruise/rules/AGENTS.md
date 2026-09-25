@@ -39,12 +39,14 @@ When a request to Cruise fails or returns a refusal payload, inspect `error.code
 
 | Error Code | HTTP Status | Semantic Meaning | Required Agent Action & User Feedback |
 | :--- | :--- | :--- | :--- |
-| `budget_exhausted` | 429 | Project Period Budget Cap Hit | **Temporary refusal.** Check `Retry-After` header and query `get_budget`. Do not retry in a loop. Inform the user of the period reset schedule or suggest increasing the project budget cap in the Cruise dashboard. |
-| `wallet_exhausted` | 402 or 429 | Account Prepaid Wallet Depleted | **Non-transient refusal.** Contains no `Retry-After`. Halt retries immediately. Inform user that organization wallet funds are depleted and require a top-up or credit grant. |
+| `budget_exhausted` | 429 | Project Period Budget Cap Hit | **Temporary refusal.** Carries `Retry-After` header and `x-cruise-budget-reserved`. Query `get_budget`. Do not retry in a loop. Inform the user of the period reset schedule or suggest increasing the project budget cap in the Cruise dashboard. |
+| `wallet_exhausted` | 429 (or HTTP 402) | Account Prepaid Wallet Depleted | **Non-transient refusal.** Insufficient quota with **no** `Retry-After`. Halt retries immediately. Inform user that organization wallet funds are depleted and require a top-up or credit grant. |
 | `rate_limit_exceeded` / `account_rate_limit_exceeded` | 429 | Request / Token Burst Rate Limit | **Transient concurrency spike.** Apply exponential backoff (e.g., 2s, 4s, 8s up to 3 attempts) respecting the `Retry-After` header. If exhaustion persists, notify user. |
-| `limit_exceeded` / `request_unbounded` | 400 | Context Length Exceeded | Reduce prompt payload, truncate conversational history or excess file inclusions, and retry. |
-| `model_not_found` / `measurement_stale` | 404 / 422 | Stale or Inactive Lane / Model | Query `list_models` via MCP to find active, healthy lanes, and fall back accordingly. |
-| `permission_error` | 403 | Key Scope Restriction | Verify key permissions; request a key scoped for the required lane. |
+| `limit_exceeded` / `request_unbounded` / `unsupported_capability` | 400 | Request Parameter or Capability Error | Request exceeds max tokens, context length, or requests unsupported capability (`tools`, `streaming`, `vision`). Reduce prompt payload or select capable lane. |
+| `measurement_stale` / `model_unmeasured` | 400 | Conformance Probe Expired (>30 days) | Model or member has not been observed to serve recently. Query `list_models` via MCP to find active, healthy lanes, and fall back accordingly. |
+| `model_not_found` | 404 | Model / Lane Missing from Catalogue | Model ID or lane alias does not exist. Inspect `list_models` for valid IDs. |
+| `invalid_api_key` | 401 | Missing, Invalid, or Mismatched Key | Check `CRUISE_API_KEY` prefix against `CRUISE_BASE_URL` (demo vs live). |
+| `permission_error` | 403 | Key Scope Restriction | Verify key permissions; request a virtual key scoped for the required lane. |
 
 ## 5. Rehearsal Demo Convention
 
