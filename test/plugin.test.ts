@@ -200,7 +200,7 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     return match ? match[1] : null;
   };
 
-  it("plugins/cruise/skills/cruise/SKILL.md has valid frontmatter and runbook instructions", () => {
+  it("plugins/cruise/skills/cruise/SKILL.md has valid frontmatter, lane runbooks, refusal diagnostics, and capability checks", () => {
     const skillPath = path.join(ROOT, "plugins/cruise/skills/cruise/SKILL.md");
     expect(fs.existsSync(skillPath)).toBe(true);
 
@@ -209,12 +209,28 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     expect(frontmatter).not.toBeNull();
     expect(frontmatter).toContain("name: cruise");
     expect(frontmatter).toContain("description:");
+
+    // Verify all four core routing lanes
     expect(content).toContain("bb/agentic-coding");
-    expect(content).toContain("rate_limit_exceeded");
+    expect(content).toContain("bb/chat-assistant");
+    expect(content).toContain("bb/extraction");
+    expect(content).toContain("bb/fast");
+
+    // Verify refusal diagnostics distinguishing period cap, lifetime wallet, and rate limits
     expect(content).toContain("budget_exhausted");
+    expect(content).toContain("wallet_exhausted");
+    expect(content).toContain("rate_limit_exceeded");
+    expect(content).toContain("429");
+    expect(content).toContain("402");
+    expect(content).toContain("Retry-After");
+
+    // Verify inspection of x-cruise.any_member for capabilities
+    expect(content).toContain("x-cruise.any_member");
+    expect(content).toContain("x-cruise.any_member.tools");
+    expect(content).toContain("x-cruise.any_member.streaming");
   });
 
-  it("plugins/cruise/skills/setup/SKILL.md has valid frontmatter and setup instructions", () => {
+  it("plugins/cruise/skills/setup/SKILL.md has valid frontmatter, interactive onboarding, demo rehearsal, and safety invariants", () => {
     const setupSkillPath = path.join(ROOT, "plugins/cruise/skills/setup/SKILL.md");
     expect(fs.existsSync(setupSkillPath)).toBe(true);
 
@@ -223,7 +239,46 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     expect(frontmatter).not.toBeNull();
     expect(frontmatter).toContain("name: cruise-setup");
     expect(frontmatter).toContain("description:");
+
+    // Verify interactive onboarding and safe environment check
+    expect(content).toContain('test -n "$CRUISE_API_KEY"');
     expect(content).toContain("CRUISE_API_KEY");
+    expect(content).toContain("CRUISE_BASE_URL");
+
+    // Verify rehearsal demo verification check before live usage
+    expect(content).toContain("https://cruise-demo.bytesbrains.net");
+    expect(content).toContain("cru_demo_");
+    expect(content).toContain("cru_live_");
+
+    // Verify credential security and zero-persistence rules
+    expect(content).toMatch(/never write|never persist|zero credential persistence/i);
+
+    // Verify MCP tool checks and troubleshooting guidance
+    expect(content).toContain("list_models");
+    expect(content).toContain("get_budget");
+    expect(content).toContain("get_spend");
+    expect(content).toContain("401");
+    expect(content).toContain("403");
+
+    // Verify paths referenced in setup skill resolve to existing repository files
+    const referencedMcpConfig = path.join(ROOT, "plugins/cruise/mcp_config.json");
+    expect(fs.existsSync(referencedMcpConfig)).toBe(true);
+
+    // Verify consistency of all 4 lanes between skills and AGENTS.md rules
+    const rulesContent = fs.readFileSync(
+      path.join(ROOT, "plugins/cruise/rules/AGENTS.md"),
+      "utf-8"
+    );
+    const lanes = [
+      "bb/agentic-coding",
+      "bb/chat-assistant",
+      "bb/extraction",
+      "bb/fast",
+    ];
+    for (const lane of lanes) {
+      expect(content).toContain(lane);
+      expect(rulesContent).toContain(lane);
+    }
   });
 
   it("assets directory contains all required logo files", () => {
