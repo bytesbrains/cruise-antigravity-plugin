@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { execSync } from "node:child_process";
 
 const ROOT = path.resolve(__dirname, "..");
 
@@ -63,68 +64,120 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     ).toBe("Bearer mock_test_key_123");
   });
 
-  it("verifies zero hardcoded API keys across published plugin files and configurations", () => {
-    const getFilesRecursively = (dir: string): string[] => {
-      let results: string[] = [];
-      const list = fs.readdirSync(dir);
-      for (const file of list) {
-        const fullPath = path.join(dir, file);
-        const stat = fs.statSync(fullPath);
-        if (stat.isDirectory()) {
-          results = results.concat(getFilesRecursively(fullPath));
-        } else {
-          results.push(fullPath);
-        }
+  it("verifies zero hardcoded API keys across repository files and configurations", () => {
+    const getTrackedFiles = (): string[] => {
+      try {
+        const stdout = execSync("git ls-files", { cwd: ROOT, encoding: "utf-8" });
+        return stdout.split("\n").filter((f) => f.length > 0 && !f.startsWith(".git"));
+      } catch {
+        const results: string[] = [];
+        const walk = (dir: string) => {
+          for (const item of fs.readdirSync(dir)) {
+            if (item === ".git" || item === "node_modules") continue;
+            const fullPath = path.join(dir, item);
+            if (fs.statSync(fullPath).isDirectory()) walk(fullPath);
+            else results.push(path.relative(ROOT, fullPath));
+          }
+        };
+        walk(ROOT);
+        return results;
       }
-      return results;
     };
 
-    const pluginFiles = getFilesRecursively(path.join(ROOT, "plugins"));
+    const files = getTrackedFiles();
     const keyPattern = /cru_(live|test|demo|svc)_[A-Za-z0-9]{8,}/;
 
-    for (const file of pluginFiles) {
-      const content = fs.readFileSync(file, "utf-8");
-      expect(content).not.toMatch(keyPattern);
+    for (const relativePath of files) {
+      if (
+        relativePath.startsWith("assets/") &&
+        (relativePath.endsWith(".png") || relativePath.endsWith(".jpg"))
+      ) {
+        continue;
+      }
+      const content = fs.readFileSync(path.join(ROOT, relativePath), "utf-8");
+      expect(content, `Credential pattern detected in ${relativePath}`).not.toMatch(keyPattern);
     }
   });
 
-  it("validates Cruise MCP tool compatibility schemas for list_models, get_budget, and get_spend", () => {
-    // Verified schemas from Cruise gateway MCP implementation
-    const cruiseMcpTools = [
-      {
-        name: "list_models",
-        description: "Every model and lane this Cruise key can call, with capabilities and list prices",
-        hasInputSchema: true,
-        expectedInputs: ["kind", "modality"],
-        expectedOutputs: ["models"],
-      },
-      {
-        name: "get_budget",
-        description: "How much this key's project has spent in its current budget period against its caps",
-        hasInputSchema: true,
-        expectedInputs: [],
-        expectedOutputs: ["project", "budget", "wallet"],
-      },
-      {
-        name: "get_spend",
-        description: "What this key's project was charged in a calendar month",
-        hasInputSchema: true,
-        expectedInputs: ["month", "by"],
-        expectedOutputs: ["project", "total_usd", "rows"],
-      },
-    ];
+  it("validates Cruise MCP server tool compatibility and contract against plugin configuration", () => {
+    const mcpConfigPath = path.join(ROOT, "plugins/cruise/mcp_config.json");
+    expect(fs.existsSync(mcpConfigPath)).toBe(true);
 
-    expect(cruiseMcpTools.map((t) => t.name)).toEqual([
-      "list_models",
-      "get_budget",
-      "get_spend",
-    ]);
+    const mcpConfig = JSON.parse(fs.readFileSync(mcpConfigPath, "utf-8"));
+    const server = mcpConfig.mcpServers?.cruise;
+    expect(server).toBeDefined();
 
-    for (const tool of cruiseMcpTools) {
-      expect(tool.name.length).toBeGreaterThan(0);
-      expect(tool.description.length).toBeGreaterThan(0);
-      expect(tool.hasInputSchema).toBe(true);
+    // Verify server configuration targets Cruise gateway MCP
+    expect(server.serverUrl).toContain("/mcp");
+    expect(server.headers?.Authorization).toContain("CRUISE_API_KEY");
+
+    // Verify all 3 Cruise MCP tools are documented and integrated across plugin assets
+    const rulesContent = fs.readFileSync(
+      path.join(ROOT, "plugins/cruise/rules/AGENTS.md"),
+      "utf-8"
+    );
+    const setupSkillContent = fs.readFileSync(
+      path.join(ROOT, "plugins/cruise/skills/setup/SKILL.md"),
+      "utf-8"
+    );
+    const cruiseSkillContent = fs.readFileSync(
+      path.join(ROOT, "plugins/cruise/skills/cruise/SKILL.md"),
+      "utf-8"
+    );
+
+    const requiredTools = ["list_models", "get_budget", "get_spend"];
+    for (const tool of requiredTools) {
+      expect(
+        rulesContent.includes(tool),
+        `plugins/cruise/rules/AGENTS.md must document tool ${tool}`
+      ).toBe(true);
+      expect(
+        setupSkillContent.includes(tool),
+        `plugins/cruise/skills/setup/SKILL.md must document tool ${tool}`
+      ).toBe(true);
     }
+    expect(cruiseSkillContent).toContain("list_models");
+    expect(cruiseSkillContent).toContain("get_budget");
+
+    // Simulate JSON-RPC 2.0 tool execution request payloads generated for Cruise MCP
+    const createMcpRpcRequest = (toolName: string, args: Record<string, unknown> = {}) => {
+      const endpoint = server.serverUrl.replace(
+        "${CRUISE_BASE_URL:-https://cruise.bytesbrains.net}",
+        "https://cruise.bytesbrains.net"
+      );
+      const authHeader = server.headers.Authorization.replace(
+        "${CRUISE_API_KEY}",
+        "test-token"
+      );
+
+      return {
+        url: endpoint,
+        headers: {
+          Authorization: authHeader,
+          "Content-Type": "application/json",
+        },
+        body: {
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: {
+            name: toolName,
+            arguments: args,
+          },
+        },
+      };
+    };
+
+    const listModelsReq = createMcpRpcRequest("list_models", { kind: "lanes" });
+    expect(listModelsReq.url).toBe("https://cruise.bytesbrains.net/mcp");
+    expect(listModelsReq.headers.Authorization).toBe("Bearer test-token");
+    expect(listModelsReq.body.params.name).toBe("list_models");
+
+    const getBudgetReq = createMcpRpcRequest("get_budget");
+    expect(getBudgetReq.body.params.name).toBe("get_budget");
+
+    const getSpendReq = createMcpRpcRequest("get_spend", { by: "model" });
+    expect(getSpendReq.body.params.name).toBe("get_spend");
   });
 
   it("plugins/cruise/rules/AGENTS.md exists and adheres to size constraints", () => {
