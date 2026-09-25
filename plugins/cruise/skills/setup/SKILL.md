@@ -1,44 +1,76 @@
 ---
 name: cruise-setup
 description: >-
-  Set up, configure, and verify the BytesBrains Cruise plugin for Antigravity,
-  including BYOK endpoint configuration, environment variables, and MCP connectivity checks.
+  Interactive setup, onboarding, and verification runbook for BytesBrains Cruise in Antigravity.
+  Walks through configuring CRUISE_API_KEY and CRUISE_BASE_URL, rehearsing on the free demo environment,
+  and testing MCP tool connectivity without exposing secrets.
 ---
 
 # Cruise Setup & Verification Runbook
 
-Follow this workflow to configure and verify the Cruise plugin in Antigravity IDE and the `agy` CLI.
+Follow this interactive workflow to configure and verify the Cruise plugin in Antigravity IDE and the `agy` CLI.
 
-## 1. Prerequisites & Environment Setup
-
-Cruise requires an active virtual API key.
-
-1. Ensure `CRUISE_API_KEY` is exported in your environment:
-   ```sh
-   export CRUISE_API_KEY="cru_live_..."
-   ```
-2. (Optional) If connecting to an enterprise tenant or rehearsal demo environment:
-   ```sh
-   export CRUISE_BASE_URL="https://cruise-demo.bytesbrains.net"
-   ```
-   *Default:* `https://cruise.bytesbrains.net`
+## 1. Credential Security Invariants
 
 > [!IMPORTANT]
-> Never write `CRUISE_API_KEY` into project files or settings configs. Keep it strictly in your shell environment or keychain.
+> **Zero Credential Persistence:**
+> - Never write `CRUISE_API_KEY` into project files, `.agents/plugins/`, workspace settings, or git-tracked repositories.
+> - Keep keys strictly in your shell environment, keychain, or private secret store.
+> - If a key is pasted into the chat session, never echo or persist it.
 
 ---
 
-## 2. Plugin Registration
+## 2. Interactive Onboarding & Environment Setup
 
-### Option A: Project Workspace Discovery
-Ensure the plugin is mounted inside `.agents/plugins/cruise`:
+### Step 1: Pre-Flight Key Inspection
+Check if the API key is already configured in the environment without exposing its value:
+
+```sh
+test -n "$CRUISE_API_KEY" && echo "CRUISE_API_KEY is configured" || echo "CRUISE_API_KEY is missing"
+```
+
+If missing, obtain a key from the Cruise dashboard (or organization administrator).
+
+### Step 2: Rehearsal Demo Verification (Recommended)
+Before consuming production quotas, rehearse on the free Cruise demo environment with a `cru_demo_` key:
+
+```sh
+# 1. Export demo base URL and rehearsal key
+export CRUISE_BASE_URL="https://cruise-demo.bytesbrains.net"
+export CRUISE_API_KEY="cru_demo_..."
+
+# 2. Verify demo endpoint connectivity
+curl -s "${CRUISE_BASE_URL}/v1/models" -H "Authorization: Bearer ${CRUISE_API_KEY}"
+```
+
+Confirm that the demo catalogue responds with HTTP 200 and available demo lanes.
+
+### Step 3: Production Configuration
+Once demo connectivity is verified, switch to production:
+
+```sh
+# Remove demo override (defaults to https://cruise.bytesbrains.net)
+unset CRUISE_BASE_URL
+
+# Set live virtual key
+export CRUISE_API_KEY="cru_live_..."
+```
+
+Add these exports to your shell profile (`~/.zshrc`, `~/.bashrc`) or secret manager so new Antigravity sessions inherit them.
+
+---
+
+## 3. Plugin Registration
+
+### Option A: Workspace Project Discovery
+Place or submodule the plugin in your project's customization root:
 ```sh
 mkdir -p .agents/plugins
 git clone https://github.com/bytesbrains/cruise-antigravity-plugin.git .agents/plugins/cruise
 ```
 
 ### Option B: Explicit Inclusion (`plugins.json`)
-If the repository is checked out elsewhere, register it in your workspace's `.agents/plugins.json`:
+If the plugin is located outside the workspace, reference it in `.agents/plugins.json`:
 ```json
 {
   "entries": [
@@ -51,33 +83,46 @@ If the repository is checked out elsewhere, register it in your workspace's `.ag
 
 ---
 
-## 3. BYOK Endpoint Configuration
+## 4. BYOK Inference Endpoint Configuration
 
-Point Antigravity's inference client to the Cruise OpenAI-compatible endpoint:
+Configure Antigravity's inference client to route requests through Cruise's OpenAI-compatible gateway:
 
-1. Base URL: `${CRUISE_BASE_URL:-https://cruise.bytesbrains.net}/v1`
-2. API Key Header: `Authorization: Bearer ${CRUISE_API_KEY}`
-3. Default Routing Model: `bb/agentic-coding`
+1. **Base URL**: `${CRUISE_BASE_URL:-https://cruise.bytesbrains.net}/v1`
+2. **Authorization**: `Bearer ${CRUISE_API_KEY}`
+3. **Default Model Lane**: `bb/agentic-coding`
 
 ---
 
-## 4. Verification Workflow
+## 5. Verification & Health Checks
 
-Run through this verification checklist to confirm setup:
+Run through this verification sequence to confirm end-to-end operation:
 
-1. **Verify Environment**:
+1. **Verify Environment Variables**:
    ```sh
-   if [ -z "$CRUISE_API_KEY" ]; then echo "Missing CRUISE_API_KEY"; else echo "CRUISE_API_KEY is set"; fi
+   test -n "$CRUISE_API_KEY" && echo "Ready: CRUISE_API_KEY is set"
    ```
+
 2. **Verify MCP Tools**:
-   Check if the agent has access to Cruise MCP tools:
-   - `list_models` — Should list available lanes (`bb/agentic-coding`, `bb/chat-assistant`, etc.)
-   - `get_budget` — Should display the active project budget, current spend, and threshold status.
-   - `get_spend` — Should display cumulative settled ledger spend for the project.
+   Check that the agent can invoke the 3 Cruise MCP tools defined in `plugins/cruise/mcp_config.json`:
+   - `list_models`: Returns available lanes (`bb/agentic-coding`, `bb/chat-assistant`, `bb/extraction`, `bb/fast`) and member models.
+   - `get_budget`: Confirms project spend, budget cap, and `action` status (`serve` vs `refuse`).
+   - `get_spend`: Queries settled cost ledger records for the current or specified calendar month.
+
 3. **Smoke Test Request**:
-   Perform a simple prompt with the configured lane:
+   Send a lightweight catalogue request to verify bearer authentication:
    ```sh
    curl -s "${CRUISE_BASE_URL:-https://cruise.bytesbrains.net}/v1/models" \
      -H "Authorization: Bearer ${CRUISE_API_KEY}"
    ```
-   Confirm that HTTP 200 is returned with the model catalogue.
+
+---
+
+## 6. Troubleshooting Common Issues
+
+| Error / Symptom | Root Cause | Resolution |
+| :--- | :--- | :--- |
+| **HTTP 401 "Incorrect API key provided"** | `CRUISE_API_KEY` is empty, expired, or a `cru_demo_` key was sent to production (or `cru_live_` to demo). | Verify key prefix against `CRUISE_BASE_URL`. Ensure key is exported in the shell before launching Antigravity. |
+| **HTTP 403 "Permission denied"** | Key lacks access to the requested model or lane. | Call `list_models` via MCP to inspect allowed lanes for the key. |
+| **HTTP 429 "budget_exhausted"** | Period project budget cap reached. | Inspect `get_budget`. Cap will reset at the period boundary, or increase cap in dashboard. |
+| **HTTP 402 "wallet_exhausted"** | Organization prepaid wallet is depleted. | Non-transient. Replenish funds or obtain credit grant; do not retry in a loop. |
+| **MCP server not responding** | Plugin not enabled or `mcp_config.json` failed to load. | Check `mcp_config.json` syntax and verify plugin is enabled in `~/.gemini/config.json`. |
