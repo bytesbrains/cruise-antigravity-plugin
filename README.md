@@ -117,6 +117,25 @@ Route your Antigravity IDE and CLI (`agy`) sessions through Cruise's OpenAI-comp
 
 📖 See the complete guide: [docs/byok.md](docs/byok.md)
 
+## Documentation & Walkthroughs
+
+| Guide | Description | Target Surface |
+| :--- | :--- | :--- |
+| **[Walkthrough & Usage Guide](docs/walkthrough.md)** | Step-by-step setup in workspace (`.agents/plugins/cruise`) or global (`~/.gemini/config/plugins/cruise`), plus example prompts for `list_models`, `get_spend`, and `get_budget`. | Antigravity IDE & `agy` CLI |
+| **[Troubleshooting Guide](docs/troubleshooting.md)** | Diagnosing `401 Unauthorized` auth errors, resolving `402`/`429` budget cap refusals, and testing MCP tool connectivity. | Runbooks & Gateway |
+| **[BYOK & Routing Guide](docs/byok.md)** | Routing Antigravity inference through Cruise's OpenAI-compatible gateway with zero-cost demo rehearsal recipes. | Model Provider Gateway |
+
+## Official Brand Assets
+
+Vector and high-resolution brand assets are maintained under [`assets/`](assets/):
+
+| Asset | Format | Preview / Link | Description |
+| :--- | :--- | :--- | :--- |
+| **Logo** | SVG | [`assets/cruise-logo.svg`](assets/cruise-logo.svg) | Full horizontal Cruise vector logo with sweep gradient. |
+| **App Icon** | SVG | [`assets/cruise-icon.svg`](assets/cruise-icon.svg) | High-resolution application and plugin icon (512x512). |
+| **Social Banner** | SVG | [`assets/cruise-banner.svg`](assets/cruise-banner.svg) | Open Graph social preview and header banner (1280x640). |
+| **Mark** | SVG | [`assets/cruise-mark.svg`](assets/cruise-mark.svg) | Standalone Cruise core emblem mark. |
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
