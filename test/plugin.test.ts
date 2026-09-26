@@ -322,10 +322,18 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
       "cruise_logo.jpg",
       "cruise-logo.svg",
       "cruise-mark.svg",
+      "cruise-icon.svg",
+      "cruise-banner.svg",
     ];
 
     for (const file of expectedFiles) {
-      expect(fs.existsSync(path.join(assetsDir, file))).toBe(true);
+      const filePath = path.join(assetsDir, file);
+      expect(fs.existsSync(filePath)).toBe(true);
+      if (file.endsWith(".svg")) {
+        const svgContent = fs.readFileSync(filePath, "utf-8");
+        expect(svgContent).toContain("<svg");
+        expect(svgContent).toContain("</svg>");
+      }
     }
   });
 
@@ -410,14 +418,71 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     }
   });
 
-  it("README.md links to docs/byok.md and outlines BYOK capabilities", () => {
+  it("README.md links to all docs guides and outlines brand assets and BYOK capabilities", () => {
     const readmePath = path.join(ROOT, "README.md");
     const content = fs.readFileSync(readmePath, "utf-8");
 
+    // Documentation guides
     expect(content).toContain("docs/byok.md");
+    expect(content).toContain("docs/walkthrough.md");
+    expect(content).toContain("docs/troubleshooting.md");
     expect(content).toContain("BYOK & Model Provider Routing");
     expect(content).toContain("OPENAI_BASE_URL");
     expect(content).toContain("https://cruise-demo.bytesbrains.net");
+
+    // Brand assets
+    expect(content).toContain("assets/cruise-logo.svg");
+    expect(content).toContain("assets/cruise-icon.svg");
+    expect(content).toContain("assets/cruise-banner.svg");
+    expect(content).toContain("assets/cruise-mark.svg");
+  });
+
+  it("docs/walkthrough.md exists, adheres to size budget (<450 lines), and covers quickstart & example prompts", () => {
+    const walkthroughPath = path.join(ROOT, "docs/walkthrough.md");
+    expect(fs.existsSync(walkthroughPath)).toBe(true);
+
+    const content = fs.readFileSync(walkthroughPath, "utf-8");
+    const lineCount = content.split("\n").length;
+    expect(lineCount).toBeLessThan(450);
+    expect(lineCount).toBeGreaterThan(50);
+
+    // Quickstart discovery paths
+    expect(content).toContain(".agents/plugins/cruise");
+    expect(content).toContain("~/.gemini/config/plugins/cruise");
+    expect(content).toContain("CRUISE_API_KEY");
+
+    // Core MCP tool walkthrough prompts
+    expect(content).toContain("list_models");
+    expect(content).toContain("get_spend");
+    expect(content).toContain("get_budget");
+    expect(content).toContain("bb/agentic-coding");
+    expect(content).toContain("bb/chat-assistant");
+  });
+
+  it("docs/troubleshooting.md exists, adheres to size budget (<450 lines), and covers auth, refusals, and MCP connectivity", () => {
+    const troubleshootingPath = path.join(ROOT, "docs/troubleshooting.md");
+    expect(fs.existsSync(troubleshootingPath)).toBe(true);
+
+    const content = fs.readFileSync(troubleshootingPath, "utf-8");
+    const lineCount = content.split("\n").length;
+    expect(lineCount).toBeLessThan(450);
+    expect(lineCount).toBeGreaterThan(50);
+
+    // Auth troubleshooting
+    expect(content).toContain("401 Unauthorized");
+    expect(content).toContain("CRUISE_API_KEY");
+    expect(content).toContain("cru_");
+
+    // Refusal diagnostics & budget cap differences
+    expect(content).toContain("budget_exhausted");
+    expect(content).toContain("wallet_exhausted");
+    expect(content).toContain("429");
+    expect(content).toContain("402");
+    expect(content).toContain("Retry-After");
+
+    // MCP connectivity troubleshooting
+    expect(content).toContain("mcp_config.json");
+    expect(content).toContain("cruise.bytesbrains.net");
   });
 
   it("validates documented BYOK configuration snippets, settings schema, and endpoint resolution", () => {
