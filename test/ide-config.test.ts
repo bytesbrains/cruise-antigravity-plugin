@@ -132,6 +132,12 @@ describe("Antigravity IDE Custom Provider Configuration & Settings UI Integratio
       expect(validateIdeSettings(null).valid).toBe(false);
       expect(validateIdeSettings([]).valid).toBe(false);
 
+      const missingProviders = validateIdeSettings({ theme: "Default" });
+      expect(missingProviders.valid).toBe(false);
+      expect(missingProviders.errors).toContain(
+        "Settings object must define 'antigravity.ai.customProviders'."
+      );
+
       const invalidProvider = {
         "antigravity.ai.customProviders": [
           {
@@ -149,13 +155,15 @@ describe("Antigravity IDE Custom Provider Configuration & Settings UI Integratio
   });
 
   describe("updateIdeSettings", () => {
-    it("creates new IDE settings file if none exists", () => {
+    it("creates new IDE settings file if none exists with 0o600 permissions", () => {
       const result = updateIdeSettings({
         settingsPath: tempIdeSettingsPath,
       });
 
       expect(result.updated).toBe(true);
       expect(fs.existsSync(tempIdeSettingsPath)).toBe(true);
+      const stats = fs.statSync(tempIdeSettingsPath);
+      expect(stats.mode & 0o777).toBe(0o600);
 
       const saved = JSON.parse(fs.readFileSync(tempIdeSettingsPath, "utf-8"));
       expect(saved["antigravity.ai.customProviders"]).toBeDefined();
@@ -242,6 +250,32 @@ describe("Antigravity IDE Custom Provider Configuration & Settings UI Integratio
       expect(cruise.baseUrl).toBe("https://cruise.bytesbrains.net/v1");
       expect(cruise.models).toEqual(["bb/agentic-coding", "bb/fast"]);
       expect(cruise.customField).toBe("keep-me");
+    });
+
+    it("preserves custom provider name when updating in place", () => {
+      fs.writeFileSync(
+        tempIdeSettingsPath,
+        JSON.stringify({
+          "antigravity.ai.customProviders": [
+            {
+              name: "My Custom Cruise Name",
+              baseUrl: "https://cruise.bytesbrains.net/v1",
+              apiKey: "${env:CRUISE_API_KEY}",
+              models: ["bb/agentic-coding"],
+            },
+          ],
+        })
+      );
+
+      updateIdeSettings({
+        settingsPath: tempIdeSettingsPath,
+        baseUrl: "https://cruise-demo.bytesbrains.net",
+      });
+
+      const saved = JSON.parse(fs.readFileSync(tempIdeSettingsPath, "utf-8"));
+      expect(saved["antigravity.ai.customProviders"]).toHaveLength(1);
+      expect(saved["antigravity.ai.customProviders"][0].name).toBe("My Custom Cruise Name");
+      expect(saved["antigravity.ai.customProviders"][0].baseUrl).toBe("https://cruise-demo.bytesbrains.net/v1");
     });
 
     it("throws clear error when settings file contains invalid JSON", () => {

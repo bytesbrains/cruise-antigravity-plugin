@@ -104,42 +104,47 @@ export function validateIdeSettings(settings: unknown): {
   const s = settings as Record<string, unknown>;
   const providers = s["antigravity.ai.customProviders"];
 
-  if (providers !== undefined) {
-    if (!Array.isArray(providers)) {
-      errors.push("'antigravity.ai.customProviders' must be an array.");
-    } else {
-      providers.forEach((prov, idx) => {
-        if (!prov || typeof prov !== "object" || Array.isArray(prov)) {
-          errors.push(`Provider at index ${idx} must be an object.`);
-          return;
-        }
+  if (providers === undefined) {
+    return {
+      valid: false,
+      errors: ["Settings object must define 'antigravity.ai.customProviders'."],
+    };
+  }
 
-        const p = prov as Record<string, unknown>;
-        if (typeof p.name !== "string" || p.name.trim().length === 0) {
-          errors.push(`Provider at index ${idx} requires a non-empty 'name' string.`);
-        }
+  if (!Array.isArray(providers)) {
+    errors.push("'antigravity.ai.customProviders' must be an array.");
+  } else {
+    providers.forEach((prov, idx) => {
+      if (!prov || typeof prov !== "object" || Array.isArray(prov)) {
+        errors.push(`Provider at index ${idx} must be an object.`);
+        return;
+      }
 
-        if (typeof p.baseUrl !== "string" || !/^https?:\/\/.+/.test(p.baseUrl.trim())) {
-          errors.push(
-            `Provider at index ${idx} requires a valid http/https 'baseUrl' string.`
-          );
-        }
+      const p = prov as Record<string, unknown>;
+      if (typeof p.name !== "string" || p.name.trim().length === 0) {
+        errors.push(`Provider at index ${idx} requires a non-empty 'name' string.`);
+      }
 
-        if (typeof p.apiKey !== "string" || p.apiKey.trim().length === 0) {
-          errors.push(`Provider at index ${idx} requires a non-empty 'apiKey' string.`);
-        }
+      if (typeof p.baseUrl !== "string" || !/^https?:\/\/.+/.test(p.baseUrl.trim())) {
+        errors.push(
+          `Provider at index ${idx} requires a valid http/https 'baseUrl' string.`
+        );
+      }
 
-        if (
-          !Array.isArray(p.models) ||
-          p.models.length === 0 ||
-          p.models.some((m) => typeof m !== "string" || m.trim().length === 0)
-        ) {
-          errors.push(
-            `Provider at index ${idx} requires a non-empty array of model strings.`
-          );
-        }
-      });
-    }
+      if (typeof p.apiKey !== "string" || p.apiKey.trim().length === 0) {
+        errors.push(`Provider at index ${idx} requires a non-empty 'apiKey' string.`);
+      }
+
+      if (
+        !Array.isArray(p.models) ||
+        p.models.length === 0 ||
+        p.models.some((m) => typeof m !== "string" || m.trim().length === 0)
+      ) {
+        errors.push(
+          `Provider at index ${idx} requires a non-empty array of model strings.`
+        );
+      }
+    });
   }
 
   return {
@@ -174,24 +179,34 @@ export function updateIdeSettings(options?: IdeSettingsOptions): IdeSettingsUpda
     }
   }
 
-  const cruiseProvider = createCruiseCustomProvider({
-    name: options?.name,
-    baseUrl: options?.baseUrl,
-    apiKey: options?.apiKey,
-    models: options?.models,
-  });
-
   const existingProviders = Array.isArray(existingSettings["antigravity.ai.customProviders"])
     ? [...existingSettings["antigravity.ai.customProviders"]]
     : [];
 
+  const targetName = options?.name?.trim();
   const existingIndex = existingProviders.findIndex(
-    (p) => p && typeof p === "object" && p.name === cruiseProvider.name
+    (p) =>
+      p &&
+      typeof p === "object" &&
+      (targetName
+        ? p.name === targetName
+        : p.name === DEFAULT_CRUISE_PROVIDER_NAME ||
+          (typeof p.baseUrl === "string" && p.baseUrl.includes("cruise.bytesbrains.net")))
   );
+
+  const matchedExisting = existingIndex >= 0 ? existingProviders[existingIndex] : undefined;
+  const resolvedName = targetName || matchedExisting?.name || DEFAULT_CRUISE_PROVIDER_NAME;
+
+  const cruiseProvider = createCruiseCustomProvider({
+    name: resolvedName,
+    baseUrl: options?.baseUrl || (matchedExisting?.baseUrl as string | undefined),
+    apiKey: options?.apiKey,
+    models: options?.models,
+  });
 
   if (existingIndex >= 0) {
     existingProviders[existingIndex] = {
-      ...existingProviders[existingIndex],
+      ...matchedExisting,
       ...cruiseProvider,
     };
   } else {
@@ -208,7 +223,41 @@ export function updateIdeSettings(options?: IdeSettingsOptions): IdeSettingsUpda
     throw new Error(`Invalid IDE configuration: ${validation.errors.join("; ")}`);
   }
 
-  fs.writeFileSync(targetPath, JSON.stringify(updatedSettings, null, 2) + "\n", "utf-8");
+  const content = JSON.stringify(updatedSettings, null, 2) + "\n";
+  const tmpPath = path.join(
+    parentDir,
+    `.settings.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`
+  );
+
+  let targetMode = 0o600;
+  if (fs.existsSync(targetPath)) {
+    try {
+      targetMode = fs.statSync(targetPath).mode & 0o777;
+    } catch {
+      targetMode = 0o600;
+    }
+  }
+
+  try {
+    fs.writeFileSync(tmpPath, content, { encoding: "utf-8", mode: targetMode });
+    try {
+      fs.chmodSync(tmpPath, targetMode);
+    } catch {
+      // Ignore chmod error if filesystem does not support it
+    }
+    fs.renameSync(tmpPath, targetPath);
+  } catch (err) {
+    if (fs.existsSync(tmpPath)) {
+      try {
+        fs.unlinkSync(tmpPath);
+      } catch {
+        // Ignore unlink failure in error handling
+      }
+    }
+    throw new Error(
+      `Failed to safely write IDE settings to ${targetPath}: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
 
   return {
     updated: true,

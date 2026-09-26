@@ -4,6 +4,9 @@
   "title": "Antigravity IDE Settings",
   "description": "Configuration schema for Google Antigravity IDE settings, including OpenAI-compatible custom AI model providers.",
   "type": "object",
+  "required": [
+    "antigravity.ai.customProviders"
+  ],
   "properties": {
     "antigravity.ai.customProviders": {
       "type": "array",
