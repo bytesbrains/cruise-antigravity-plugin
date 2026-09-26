@@ -17,12 +17,13 @@
     "typecheck": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
-    "setup": "node ./plugins/cruise/skills/setup/scripts/setup.ts",
+    "setup": "tsx ./plugins/cruise/skills/setup/scripts/setup.ts",
     "secrets:scan": "gitleaks detect --source . --redact --no-banner --config .gitleaks.toml"
   },
   "devDependencies": {
-    "typescript": "^7.0.2",
     "@types/node": "^26.6.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
     "vitest": "5.0.1"
   }
 }

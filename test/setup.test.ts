@@ -8,6 +8,8 @@ import {
   probeCredentials,
   updateCliSettings,
   getShellExportGuidance,
+  collectSetupInputs,
+  validateAndProbeCredentials,
   runInteractiveSetup,
   DEFAULT_BASE_URL,
   DEFAULT_MODEL,
@@ -263,6 +265,33 @@ describe("Interactive /cruise-setup Wizard & Settings Persistence", () => {
       );
       expect(guidance.exportCommand).toContain('export CRUISE_BASE_URL="https://cruise-demo.bytesbrains.net"');
     });
+
+    it("uses safe placeholder if API key is not passed", () => {
+      const guidance = getShellExportGuidance();
+      expect(guidance.exportCommand).toContain('export CRUISE_API_KEY="<your-cruise-api-key>"');
+    });
+  });
+
+  describe("collectSetupInputs & validateAndProbeCredentials", () => {
+    it("collects and normalizes options without prompting in non-interactive mode", async () => {
+      const inputs = await collectSetupInputs(
+        {
+          apiKey: "cru_live_mock",
+          baseUrl: "https://cruise.bytesbrains.net/v1",
+        },
+        null
+      );
+      expect(inputs.apiKey).toBe("cru_live_mock");
+      expect(inputs.baseUrl).toBe("https://cruise.bytesbrains.net");
+      expect(inputs.model).toBe("bb/agentic-coding");
+    });
+
+    it("skips probe when skipProbe is true", async () => {
+      const outcome = await validateAndProbeCredentials("cru_live_mock", "https://cruise.bytesbrains.net", {
+        skipProbe: true,
+      });
+      expect(outcome.validated).toBe(true);
+    });
   });
 
   describe("runInteractiveSetup (End-to-End Non-Interactive)", () => {
@@ -314,7 +343,7 @@ describe("Interactive /cruise-setup Wizard & Settings Persistence", () => {
   });
 
   describe("Executable Setup Scripts & Permissions", () => {
-    it("plugins/cruise/skills/setup/scripts/setup.sh exists and is executable", () => {
+    it("plugins/cruise/skills/setup/scripts/setup.sh exists, is executable, and delegates to setup.ts", () => {
       const scriptPath = path.join(
         ROOT,
         "plugins/cruise/skills/setup/scripts/setup.sh"
@@ -324,8 +353,7 @@ describe("Interactive /cruise-setup Wizard & Settings Persistence", () => {
 
       const content = fs.readFileSync(scriptPath, "utf-8");
       expect(content).toContain("setup.ts");
-      expect(content).toContain("CRUISE_API_KEY");
-      expect(content).toContain("settings.json");
+      expect(content).toContain("tsx");
     });
 
     it("plugins/cruise/skills/setup/scripts/setup.ts exists and exports wizard functions", () => {

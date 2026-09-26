@@ -138,7 +138,17 @@ If the plugin is located outside the workspace, reference it in `.agents/plugins
 
 ---
 
-## 5. Verification & Health Checks
+## 5. BYOK Inference Endpoint Configuration
+
+Configure Antigravity's inference client to route requests through Cruise's OpenAI-compatible gateway:
+
+1. **Base URL**: `${CRUISE_BASE_URL:-https://cruise.bytesbrains.net}/v1`
+2. **Authorization**: `Bearer ${CRUISE_API_KEY}`
+3. **Default Model Lane**: `bb/agentic-coding`
+
+---
+
+## 6. Verification & Health Checks
 
 Run through this verification sequence to confirm end-to-end operation:
 
@@ -162,7 +172,7 @@ Run through this verification sequence to confirm end-to-end operation:
 
 ---
 
-## 6. Troubleshooting Common Issues
+## 7. Troubleshooting Common Issues
 
 | Error / Symptom | Root Cause | Resolution |
 | :--- | :--- | :--- |

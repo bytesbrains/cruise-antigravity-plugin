@@ -262,7 +262,7 @@ export function updateCliSettings(options: {
 /**
  * Formulates user guidance for exporting CRUISE_API_KEY in shell profile.
  */
-export function getShellExportGuidance(apiKey: string, baseUrl?: string): ShellGuidanceResult {
+export function getShellExportGuidance(apiKey?: string, baseUrl?: string): ShellGuidanceResult {
   const userShell = process.env.SHELL || "";
   const isZsh = userShell.endsWith("zsh");
   const shellFile = isZsh ? "~/.zshrc" : "~/.bashrc";
@@ -271,7 +271,8 @@ export function getShellExportGuidance(apiKey: string, baseUrl?: string): ShellG
   const normUrl = normalizeBaseUrl(baseUrl);
   const isCustomUrl = normUrl !== DEFAULT_BASE_URL;
 
-  let exportCommand = `export CRUISE_API_KEY="${apiKey}"`;
+  const keyPlaceholder = apiKey ? `"${apiKey}"` : '"<your-cruise-api-key>"';
+  let exportCommand = `export CRUISE_API_KEY=${keyPlaceholder}`;
   if (isCustomUrl) {
     exportCommand += `\nexport CRUISE_BASE_URL="${normUrl}"`;
   }
@@ -295,7 +296,97 @@ export function getShellExportGuidance(apiKey: string, baseUrl?: string): ShellG
 }
 
 /**
- * Runs the interactive onboarding wizard.
+ * Collects wizard inputs either from supplied options or via interactive readline prompts.
+ */
+export async function collectSetupInputs(
+  options: SetupWizardOptions,
+  rl: readline.Interface | null
+): Promise<{ apiKey: string; baseUrl: string; model: string }> {
+  let baseUrlInput = options.baseUrl;
+  if (!baseUrlInput && rl) {
+    const prompt = `Enter Cruise Base URL [default: ${DEFAULT_BASE_URL}]: `;
+    const answer = await rl.question(prompt);
+    baseUrlInput = answer.trim() || DEFAULT_BASE_URL;
+  } else if (!baseUrlInput) {
+    baseUrlInput = process.env.CRUISE_BASE_URL || DEFAULT_BASE_URL;
+  }
+
+  const normalizedBaseUrl = normalizeBaseUrl(baseUrlInput);
+
+  let apiKey = options.apiKey;
+  const existingEnvKey = process.env.CRUISE_API_KEY;
+
+  if (!apiKey && rl) {
+    if (existingEnvKey) {
+      const masked = `${existingEnvKey.slice(0, 10)}...`;
+      console.log(`Found CRUISE_API_KEY in environment (${masked}).`);
+      const answer = await rl.question("Press Enter to use existing key, or paste a new key: ");
+      apiKey = answer.trim() || existingEnvKey;
+    } else {
+      const answer = await rl.question("Enter your Cruise API key (cru_live_... or cru_demo_...): ");
+      apiKey = answer.trim();
+    }
+  } else if (!apiKey) {
+    apiKey = existingEnvKey;
+  }
+
+  if (!apiKey) {
+    throw new Error("No Cruise API key provided. Setup aborted.");
+  }
+
+  const formatCheck = validateApiKeyFormat(apiKey);
+  if (!formatCheck.valid) {
+    throw new Error(formatCheck.error);
+  }
+
+  return {
+    apiKey,
+    baseUrl: normalizedBaseUrl,
+    model: options.model || DEFAULT_MODEL,
+  };
+}
+
+/**
+ * Validates credentials against Cruise gateway with interactive recovery prompts if applicable.
+ */
+export async function validateAndProbeCredentials(
+  apiKey: string,
+  baseUrl: string,
+  options?: { skipProbe?: boolean; fetchFn?: typeof fetch; rl?: readline.Interface | null }
+): Promise<{ validated: boolean; models?: string[]; message: string }> {
+  if (options?.skipProbe) {
+    return { validated: true, message: "Credential probe skipped by option." };
+  }
+
+  console.log(`\nValidating credentials against ${baseUrl}/v1/models...`);
+  const probeResult = await probeCredentials(apiKey, baseUrl, {
+    fetchFn: options?.fetchFn,
+  });
+
+  if (!probeResult.ok) {
+    console.error(`\n❌ Validation Failed: ${probeResult.message}`);
+    if (options?.rl) {
+      const proceed = await options.rl.question(
+        "Do you still want to persist this configuration? (y/N): "
+      );
+      if (proceed.trim().toLowerCase() !== "y") {
+        throw new Error(`Credential validation failed: ${probeResult.message}`);
+      }
+      return { validated: false, message: probeResult.message };
+    }
+    throw new Error(`Credential validation failed: ${probeResult.message}`);
+  }
+
+  console.log("✅ Credentials verified successfully!");
+  if (probeResult.models && probeResult.models.length > 0) {
+    console.log(`   Available lanes: ${probeResult.models.join(", ")}`);
+  }
+
+  return { validated: true, models: probeResult.models, message: probeResult.message };
+}
+
+/**
+ * Coordinates the full interactive setup wizard workflow.
  */
 export async function runInteractiveSetup(
   options: SetupWizardOptions = {}
@@ -313,96 +404,39 @@ export async function runInteractiveSetup(
     console.log("==================================================");
     console.log();
 
-    // 1. Resolve Base URL
-    let baseUrlInput = options.baseUrl;
-    if (!baseUrlInput && rl) {
-      const prompt = `Enter Cruise Base URL [default: ${DEFAULT_BASE_URL}]: `;
-      const answer = await rl.question(prompt);
-      baseUrlInput = answer.trim() || DEFAULT_BASE_URL;
-    } else if (!baseUrlInput) {
-      baseUrlInput = process.env.CRUISE_BASE_URL || DEFAULT_BASE_URL;
-    }
+    // 1. Collect and validate inputs
+    const inputs = await collectSetupInputs(options, rl);
 
-    const normalizedBaseUrl = normalizeBaseUrl(baseUrlInput);
+    // 2. Validate and probe credentials
+    const probeOutcome = await validateAndProbeCredentials(inputs.apiKey, inputs.baseUrl, {
+      skipProbe: options.skipProbe,
+      fetchFn: options.fetchFn,
+      rl,
+    });
 
-    // 2. Resolve API Key
-    let apiKey = options.apiKey;
-    const existingEnvKey = process.env.CRUISE_API_KEY;
-
-    if (!apiKey && rl) {
-      if (existingEnvKey) {
-        const masked = `${existingEnvKey.slice(0, 12)}...`;
-        console.log(`Found CRUISE_API_KEY in environment (${masked}).`);
-        const answer = await rl.question("Press Enter to use existing key, or paste a new key: ");
-        apiKey = answer.trim() || existingEnvKey;
-      } else {
-        const answer = await rl.question("Enter your Cruise API key (cru_live_... or cru_demo_...): ");
-        apiKey = answer.trim();
-      }
-    } else if (!apiKey) {
-      apiKey = existingEnvKey;
-    }
-
-    if (!apiKey) {
-      throw new Error("No Cruise API key provided. Setup aborted.");
-    }
-
-    // 3. Format Validation
-    const formatCheck = validateApiKeyFormat(apiKey);
-    if (!formatCheck.valid) {
-      throw new Error(formatCheck.error);
-    }
-
-    // 4. Live Validation Probe
-    let models: string[] | undefined;
-    if (!options.skipProbe) {
-      console.log(`\nValidating credentials against ${normalizedBaseUrl}/v1/models...`);
-      const probeResult = await probeCredentials(apiKey, normalizedBaseUrl, {
-        fetchFn: options.fetchFn,
-      });
-
-      if (!probeResult.ok) {
-        console.error(`\n❌ Validation Failed: ${probeResult.message}`);
-        if (rl) {
-          const proceed = await rl.question("Do you still want to persist this configuration? (y/N): ");
-          if (proceed.trim().toLowerCase() !== "y") {
-            throw new Error(`Credential validation failed: ${probeResult.message}`);
-          }
-        } else {
-          throw new Error(`Credential validation failed: ${probeResult.message}`);
-        }
-      } else {
-        console.log("✅ Credentials verified successfully!");
-        models = probeResult.models;
-        if (models && models.length > 0) {
-          console.log(`   Available lanes: ${models.join(", ")}`);
-        }
-      }
-    }
-
-    // 5. Update settings.json
+    // 3. Persist CLI settings
     console.log("\nConfiguring Antigravity CLI settings...");
     const settingsResult = updateCliSettings({
       settingsPath: options.settingsPath,
-      baseUrl: normalizedBaseUrl,
-      model: options.model || DEFAULT_MODEL,
+      baseUrl: inputs.baseUrl,
+      model: inputs.model,
     });
     console.log(`✅ Settings successfully saved to: ${settingsResult.path}`);
 
-    // 6. Provide Shell Guidance
+    // 4. Output guidance
     console.log("\n--------------------------------------------------");
     console.log("Shell Environment Configuration:");
     console.log("--------------------------------------------------");
-    const guidance = getShellExportGuidance(apiKey, normalizedBaseUrl);
+    const guidance = getShellExportGuidance(inputs.apiKey, inputs.baseUrl);
     console.log(guidance.instructions);
     console.log("--------------------------------------------------\n");
 
     return {
       success: true,
       message: "Cruise configuration completed successfully.",
-      baseUrl: normalizedBaseUrl,
+      baseUrl: inputs.baseUrl,
       settingsPath: settingsResult.path,
-      models,
+      models: probeOutcome.models,
     };
   } finally {
     if (rl) {
