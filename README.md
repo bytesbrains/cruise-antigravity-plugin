@@ -91,9 +91,14 @@ The plugin is enabled by default upon discovery. It can be toggled using either 
 }
 ```
 
-## Configuration
+## Configuration & Quick Setup
 
-Set your Cruise API key in your environment:
+Run the interactive setup wizard in Antigravity or via terminal:
+
+- **Inside Antigravity**: Type `/cruise-setup` to trigger the interactive onboarding wizard.
+- **Via CLI**: Run `npm run setup` or `./plugins/cruise/skills/setup/scripts/setup.sh`.
+
+Or configure manually by setting your Cruise API key in your environment:
 
 ```sh
 export CRUISE_API_KEY="cru_live_..."

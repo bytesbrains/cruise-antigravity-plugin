@@ -1,37 +1,103 @@
 ---
 name: cruise-setup
 description: >-
-  Use this skill when onboarding, configuring, or verifying BytesBrains Cruise in Antigravity IDE or the agy CLI.
-  Walks through configuring CRUISE_API_KEY and CRUISE_BASE_URL, rehearsing on the free demo environment,
-  and testing MCP tool connectivity without exposing credentials.
+  Use this skill when onboarding, configuring, or verifying BytesBrains Cruise in Antigravity IDE or the agy CLI,
+  or when the user invokes /cruise-setup. Guides interactive credential collection, live validation against /v1/models,
+  automated settings.json CLI configuration, rehearsal verification, and MCP connectivity checks.
 ---
 
-# Cruise Setup & Verification Runbook
+# Cruise Setup & Interactive Onboarding Runbook
 
-Follow this interactive workflow to configure and verify the Cruise plugin in Antigravity IDE and the `agy` CLI.
+Follow this interactive workflow when configuring and verifying the Cruise plugin in Antigravity IDE and the `agy` CLI, or when `/cruise-setup` is invoked.
 
 ## 1. Credential Security Invariants
 
 > [!IMPORTANT]
 > **Zero Credential Persistence:**
 > - Never write `CRUISE_API_KEY` into project files, `.agents/plugins/`, workspace settings, or git-tracked repositories.
+> - In `~/.gemini/antigravity-cli/settings.json`, always store `"openaiApiKey": "${CRUISE_API_KEY}"` using environment variable expansion — never persist the literal key to disk.
 > - Keep keys strictly in your shell environment, keychain, or private secret store.
-> - If a key is pasted into the chat session, never echo or persist it.
+> - If a key is provided in a session, use it only for memory/validation and guide the user on adding it to their shell profile (`~/.zshrc` / `~/.bashrc`). Never echo or persist it in chat history or code files.
 
 ---
 
-## 2. Interactive Onboarding & Environment Setup
+## 2. Interactive `/cruise-setup` Onboarding Wizard
 
-### Step 1: Pre-Flight Key Inspection
-Check if the API key is already configured in the environment without exposing its value:
+When the user triggers `/cruise-setup` or requests Cruise configuration, execute the following step-by-step interactive workflow:
+
+### Step 1: Prompt for Credentials & Base URL
+1. Check if `CRUISE_API_KEY` is already present in the active environment:
+   ```sh
+   test -n "$CRUISE_API_KEY" && echo "CRUISE_API_KEY is configured" || echo "CRUISE_API_KEY is missing"
+   ```
+2. Prompt the user for:
+   - **Cruise API Key**: Must start with `cru_live_...` (production) or `cru_demo_...` (free rehearsal). Reject raw upstream provider keys (`sk-...`, `AIza...`).
+   - **Cruise Base URL**: Defaults to `https://cruise.bytesbrains.net`. For free rehearsal sandbox testing, use `https://cruise-demo.bytesbrains.net`.
+
+### Step 2: Live Credential Validation Probe
+Before persisting settings, send an authenticated probe to verify key validity and network reachability:
 
 ```sh
-test -n "$CRUISE_API_KEY" && echo "CRUISE_API_KEY is configured" || echo "CRUISE_API_KEY is missing"
+curl -s -f "${CRUISE_BASE_URL:-https://cruise.bytesbrains.net}/v1/models" \
+  -H "Authorization: Bearer ${CRUISE_API_KEY}"
 ```
 
-If missing, obtain a key from the Cruise dashboard (or organization administrator).
+- **HTTP 200**: Credentials valid. Proceed to configuration. The response returns available virtual lanes (`bb/agentic-coding`, `bb/chat-assistant`, `bb/extraction`, `bb/fast`).
+- **HTTP 401**: Unauthorized. Invalid API key or environment mismatch (e.g. `cru_demo_` against production endpoint, or `cru_live_` against demo). Request key re-entry.
+- **HTTP 403**: Forbidden. Key lacks access permissions for the requested model catalogue.
+- **Connection Error**: Check Base URL formatting and network firewall rules.
 
-### Step 2: Rehearsal Demo Verification (Recommended)
+### Step 3: Automated CLI Configuration (`settings.json`)
+Automatically write or update `~/.gemini/antigravity-cli/settings.json` to route `agy` sessions through the Cruise gateway:
+
+```json
+{
+  "modelProvider": "openai",
+  "openaiBaseUrl": "<CRUISE_BASE_URL>/v1",
+  "openaiApiKey": "${CRUISE_API_KEY}",
+  "model": "bb/agentic-coding"
+}
+```
+
+*Note: `<CRUISE_BASE_URL>` resolves to `https://cruise.bytesbrains.net` (or the custom URL entered in Step 1). Do not include a trailing slash.*
+
+### Step 4: Shell Profile Export Guidance
+Instruct the user to export their key in their shell startup profile so every new terminal session inherits the credentials:
+
+- **Zsh (`~/.zshrc`)**:
+  ```sh
+  export CRUISE_API_KEY="cru_live_..."
+  # If using non-default base URL:
+  # export CRUISE_BASE_URL="https://cruise-demo.bytesbrains.net"
+  ```
+  Reload: `source ~/.zshrc`
+
+- **Bash (`~/.bashrc`)**:
+  ```sh
+  export CRUISE_API_KEY="cru_live_..."
+  # If using non-default base URL:
+  # export CRUISE_BASE_URL="https://cruise-demo.bytesbrains.net"
+  ```
+  Reload: `source ~/.bashrc`
+
+### Step 5: Executing via Bundled Setup Helper
+Alternatively, invoke the automated TypeScript / Bash setup wizard directly:
+
+```sh
+# Via Node.js (interactive)
+node plugins/cruise/skills/setup/scripts/setup.ts
+
+# Via Bash script
+./plugins/cruise/skills/setup/scripts/setup.sh
+
+# Or via npm script
+npm run setup
+```
+
+---
+
+## 3. Rehearsal Demo Verification (Recommended)
+
 Before consuming production quotas, rehearse on the free Cruise demo environment with a `cru_demo_` key:
 
 ```sh
@@ -43,24 +109,13 @@ export CRUISE_API_KEY="cru_demo_..."
 curl -s "${CRUISE_BASE_URL}/v1/models" -H "Authorization: Bearer ${CRUISE_API_KEY}"
 ```
 
-Confirm that the demo catalogue responds with HTTP 200 and available demo lanes.
+Confirm that the demo catalogue responds with HTTP 200 and available demo lanes (`bb/agentic-coding`, `bb/chat-assistant`, `bb/extraction`, `bb/fast`).
 
-### Step 3: Production Configuration
-Once demo connectivity is verified, switch to production:
-
-```sh
-# Remove demo override (defaults to https://cruise.bytesbrains.net)
-unset CRUISE_BASE_URL
-
-# Set live virtual key
-export CRUISE_API_KEY="cru_live_..."
-```
-
-Add these exports to your shell profile (`~/.zshrc`, `~/.bashrc`) or secret manager so new Antigravity sessions inherit them.
+Once verified, switch to live production by unsetting `CRUISE_BASE_URL` and exporting your `cru_live_...` key.
 
 ---
 
-## 3. Plugin Registration
+## 4. Plugin Registration
 
 ### Option A: Workspace Project Discovery
 Place or submodule the plugin in your project's customization root:
@@ -83,7 +138,7 @@ If the plugin is located outside the workspace, reference it in `.agents/plugins
 
 ---
 
-## 4. BYOK Inference Endpoint Configuration
+## 5. BYOK Inference Endpoint Configuration
 
 Configure Antigravity's inference client to route requests through Cruise's OpenAI-compatible gateway:
 
@@ -93,7 +148,7 @@ Configure Antigravity's inference client to route requests through Cruise's Open
 
 ---
 
-## 5. Verification & Health Checks
+## 6. Verification & Health Checks
 
 Run through this verification sequence to confirm end-to-end operation:
 
@@ -103,7 +158,7 @@ Run through this verification sequence to confirm end-to-end operation:
    ```
 
 2. **Verify MCP Tools**:
-   Check that the agent can invoke the 3 Cruise MCP tools defined in `plugins/cruise/mcp_config.json`:
+   Check that the agent can invoke the 3 Cruise MCP tools defined in [mcp_config.json](../../mcp_config.json):
    - `list_models`: Returns available lanes (`bb/agentic-coding`, `bb/chat-assistant`, `bb/extraction`, `bb/fast`) and member models.
    - `get_budget`: Confirms project spend, budget cap, and `action` status (`serve` vs `refuse`).
    - `get_spend`: Queries settled cost ledger records for the current or specified calendar month.
@@ -117,7 +172,7 @@ Run through this verification sequence to confirm end-to-end operation:
 
 ---
 
-## 6. Troubleshooting Common Issues
+## 7. Troubleshooting Common Issues
 
 | Error / Symptom | Root Cause | Resolution |
 | :--- | :--- | :--- |
