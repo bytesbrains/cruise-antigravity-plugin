@@ -3,7 +3,7 @@ name: cruise
 description: >-
   Use this skill when selecting or optimizing Cruise AI model routing lanes (bb/agentic-coding, bb/chat-assistant, bb/extraction, bb/fast),
   when inspecting model capabilities (x-cruise.any_member), or when diagnosing and resolving Cruise gateway refusals
-  (including HTTP 429 rate limits, HTTP 402 period budget caps, and lifetime wallet exhaustion).
+  (including HTTP 429 rate limits and period budget caps, and HTTP 402 lifetime wallet exhaustion).
 ---
 
 # Cruise Lane Selection & Refusal Runbooks

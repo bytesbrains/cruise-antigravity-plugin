@@ -238,6 +238,8 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     expect(frontmatter).not.toBeNull();
     expect(frontmatter).toContain("name: cruise");
     expect(frontmatter).toContain("description:");
+    expect(frontmatter).toContain("HTTP 429 rate limits and period budget caps");
+    expect(frontmatter).toContain("HTTP 402 lifetime wallet exhaustion");
 
     // Verify all four core routing lanes
     expect(content).toContain("bb/agentic-coding");
@@ -606,6 +608,11 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     expect(ciContent).toContain("npm test");
     expect(ciContent).toContain("npm run secrets:scan");
     expect(ciContent).toContain("gitleaks/gitleaks-action");
+
+    // Verify gitleaks install verifies SHA256 checksum and fails closed
+    expect(ciContent).toContain("curl --fail");
+    expect(ciContent).toContain("GITLEAKS_SHA256=");
+    expect(ciContent).toContain("sha256sum --check --strict");
   });
 });
 
