@@ -297,6 +297,7 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     expect(content).toContain("/cruise-setup");
     expect(content).toContain("/v1/models");
     expect(content).toContain("~/.gemini/antigravity-cli/settings.json");
+    expect(content).toContain("antigravity.ai.customProviders");
     expect(content).toContain("modelProvider");
     expect(content).toContain("openaiBaseUrl");
     expect(content).toContain("openaiApiKey");
@@ -488,6 +489,7 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     // Section 2: Antigravity IDE Integration
     expect(content).toContain("Antigravity IDE");
     expect(content).toMatch(/Custom Provider|OpenAI Compatible/i);
+    expect(content).toContain("antigravity.ai.customProviders");
 
     // Section 3: Demo Rehearsal Guide
     expect(content).toContain("https://cruise-demo.bytesbrains.net");
@@ -539,6 +541,7 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     expect(content).toContain(".agents/plugins/cruise");
     expect(content).toContain("~/.gemini/config/plugins/cruise");
     expect(content).toContain("CRUISE_API_KEY");
+    expect(content).toContain("antigravity.ai.customProviders");
 
     // Core MCP tool walkthrough prompts
     expect(content).toContain("list_models");

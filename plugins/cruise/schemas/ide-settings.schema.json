@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://cruise.bytesbrains.net/schemas/antigravity-ide-settings.json",
+  "title": "Antigravity IDE Settings",
+  "description": "Configuration schema for Google Antigravity IDE settings, including OpenAI-compatible custom AI model providers.",
+  "type": "object",
+  "required": [
+    "antigravity.ai.customProviders"
+  ],
+  "properties": {
+    "antigravity.ai.customProviders": {
+      "type": "array",
+      "description": "List of registered custom OpenAI-compatible AI model providers in Antigravity IDE.",
+      "items": {
+        "$ref": "#/definitions/CustomProvider"
+      }
+    }
+  },
+  "definitions": {
+    "CustomProvider": {
+      "type": "object",
+      "description": "Definition of an OpenAI-compatible custom model provider in Antigravity IDE.",
+      "required": [
+        "name",
+        "baseUrl",
+        "apiKey",
+        "models"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Display name of the custom model provider in the Settings UI (e.g., 'BytesBrains Cruise').",
+          "minLength": 1
+        },
+        "baseUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "OpenAI-compatible Base URL endpoint including /v1 (e.g., 'https://cruise.bytesbrains.net/v1').",
+          "pattern": "^https?://.+"
+        },
+        "apiKey": {
+          "type": "string",
+          "description": "API key or dynamic environment variable expansion string (e.g., '${env:CRUISE_API_KEY}').",
+          "minLength": 1
+        },
+        "models": {
+          "type": "array",
+          "description": "List of virtual model lane identifiers displayed in the IDE chat dropdown selector.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

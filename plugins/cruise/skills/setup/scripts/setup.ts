@@ -3,75 +3,47 @@ import * as path from "node:path";
 import * as os from "node:os";
 import * as readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { fileURLToPath } from "node:url";
+import { isDirectExecution } from "./util.js";
 
-export interface SetupWizardOptions {
-  apiKey?: string;
-  baseUrl?: string;
-  settingsPath?: string;
-  model?: string;
-  skipProbe?: boolean;
-  nonInteractive?: boolean;
-  fetchFn?: typeof fetch;
-}
+export * from "./types.js";
+import {
+  type SetupWizardOptions,
+  type ProbeResult,
+  type SettingsUpdateResult,
+  type ShellGuidanceResult,
+  type SetupWizardResult,
+  DEFAULT_BASE_URL,
+  DEFAULT_MODEL,
+} from "./types.js";
 
-export interface ProbeResult {
-  ok: boolean;
-  status: number;
-  message: string;
-  models?: string[];
-}
+import { updateIdeSettings } from "./ide-config.js";
 
-export interface SettingsUpdateResult {
-  updated: boolean;
-  path: string;
-  settings: Record<string, unknown>;
-}
-
-export interface ShellGuidanceResult {
-  shellFile: string;
-  exportCommand: string;
-  reloadCommand: string;
-  instructions: string;
-}
-
-export interface SetupWizardResult {
-  success: boolean;
-  message: string;
-  baseUrl: string;
-  settingsPath: string;
-  models?: string[];
-}
-
-export const DEFAULT_BASE_URL = "https://cruise.bytesbrains.net";
-export const DEFAULT_MODEL = "bb/agentic-coding";
+export {
+  updateIdeSettings,
+  createCruiseCustomProvider,
+  validateIdeSettings,
+  resolveIdeSettingsPath,
+  type IdeCustomProvider,
+  type IdeSettings,
+  type IdeSettingsOptions,
+  type IdeSettingsUpdateResult,
+} from "./ide-config.js";
 
 /**
  * Normalizes and validates the Cruise Base URL.
  * Strips trailing slashes, removes trailing /v1 if entered, and ensures protocol.
  */
 export function normalizeBaseUrl(rawUrl?: string): string {
-  if (!rawUrl || rawUrl.trim().length === 0) {
-    return DEFAULT_BASE_URL;
-  }
+  if (!rawUrl || rawUrl.trim().length === 0) return DEFAULT_BASE_URL;
 
-  let cleaned = rawUrl.trim();
-
-  // Strip trailing slashes
-  cleaned = cleaned.replace(/\/+$/, "");
-
-  // If user entered endpoint with /v1, strip it so base URL represents the gateway root
+  let cleaned = rawUrl.trim().replace(/\/+$/, "");
   if (cleaned.endsWith("/v1")) {
     cleaned = cleaned.slice(0, -3).replace(/\/+$/, "");
   }
 
   if (!cleaned.startsWith("http://") && !cleaned.startsWith("https://")) {
-    // If localhost, default to http, otherwise https
-    if (cleaned.startsWith("localhost") || cleaned.startsWith("127.0.0.1")) {
-      cleaned = `http://${cleaned}`;
-    } else {
-      cleaned = `https://${cleaned}`;
-    }
+    const isLocal = cleaned.startsWith("localhost") || cleaned.startsWith("127.0.0.1");
+    cleaned = `${isLocal ? "http" : "https"}://${cleaned}`;
   }
 
   try {
@@ -423,7 +395,25 @@ export async function runInteractiveSetup(
     });
     console.log(`✅ Settings successfully saved to: ${settingsResult.path}`);
 
-    // 4. Output guidance
+    // 4. Optionally configure Antigravity IDE custom provider
+    let ideSettingsPath: string | undefined;
+    const shouldConfigureIde =
+      options.configureIde === true ||
+      Boolean(options.ideSettingsPath) ||
+      (isInteractive && (await promptConfigureIde(rl)));
+
+    if (shouldConfigureIde) {
+      console.log("\nConfiguring Antigravity IDE custom provider settings...");
+      const ideResult = updateIdeSettings({
+        settingsPath: options.ideSettingsPath,
+        baseUrl: inputs.baseUrl,
+        models: probeOutcome.models,
+      });
+      ideSettingsPath = ideResult.path;
+      console.log(`✅ IDE provider successfully registered in: ${ideSettingsPath}`);
+    }
+
+    // 5. Output guidance
     console.log("\n--------------------------------------------------");
     console.log("Shell Environment Configuration:");
     console.log("--------------------------------------------------");
@@ -436,6 +426,7 @@ export async function runInteractiveSetup(
       message: "Cruise configuration completed successfully.",
       baseUrl: inputs.baseUrl,
       settingsPath: settingsResult.path,
+      ideSettingsPath,
       models: probeOutcome.models,
     };
   } finally {
@@ -445,20 +436,13 @@ export async function runInteractiveSetup(
   }
 }
 
-// Direct CLI execution check
-const isDirectExecution = (): boolean => {
-  try {
-    if (process.argv[1]) {
-      const currentFilePath = fileURLToPath(import.meta.url);
-      return path.resolve(process.argv[1]) === path.resolve(currentFilePath);
-    }
-  } catch {
-    return false;
-  }
-  return false;
-};
+async function promptConfigureIde(rl: readline.Interface | null): Promise<boolean> {
+  if (!rl) return false;
+  const answer = await rl.question("Configure Antigravity IDE Settings UI custom provider? (Y/n): ");
+  return answer.trim().toLowerCase() !== "n";
+}
 
-if (isDirectExecution()) {
+if (isDirectExecution(import.meta.url)) {
   const args = process.argv.slice(2);
   const options: SetupWizardOptions = {};
 
@@ -469,6 +453,13 @@ if (isDirectExecution()) {
       options.baseUrl = args[++i];
     } else if (args[i] === "--settings-path" && args[i + 1]) {
       options.settingsPath = args[++i];
+    } else if (args[i] === "--ide-path" && args[i + 1]) {
+      options.ideSettingsPath = args[++i];
+      options.configureIde = true;
+    } else if (args[i] === "--ide") {
+      options.configureIde = true;
+    } else if (args[i] === "--cli-only") {
+      options.configureIde = false;
     } else if (args[i] === "--model" && args[i + 1]) {
       options.model = args[++i];
     } else if (args[i] === "--skip-probe") {
