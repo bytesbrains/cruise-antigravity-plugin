@@ -1,8 +1,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import { fileURLToPath } from "node:url";
 import { normalizeBaseUrl } from "./setup.js";
+import { isDirectExecution } from "./util.js";
 
 export interface IdeCustomProvider {
   name: string;
@@ -198,21 +198,19 @@ export function updateIdeSettings(options?: IdeSettingsOptions): IdeSettingsUpda
 
   const targetName = options?.name?.trim();
   const existingIndex = existingProviders.findIndex((p) => {
-    if (!p || typeof p !== "object") return false;
-    if (targetName) return p.name === targetName;
-    if (p.name === DEFAULT_CRUISE_PROVIDER_NAME) return true;
-    if (typeof p.baseUrl === "string") {
-      try {
-        const host = new URL(p.baseUrl).hostname.toLowerCase();
-        if (targetHost && host === targetHost) return true;
-        if (KNOWN_CRUISE_HOSTS.has(host) && (!targetHost || KNOWN_CRUISE_HOSTS.has(targetHost))) {
-          return true;
-        }
-      } catch {
+    if (!p || typeof p !== "object" || typeof p.baseUrl !== "string") return false;
+    try {
+      const existingHost = new URL(p.baseUrl).hostname.toLowerCase();
+      if (!targetHost || existingHost !== targetHost) {
         return false;
       }
+      if (targetName) {
+        return p.name === targetName;
+      }
+      return p.name === DEFAULT_CRUISE_PROVIDER_NAME;
+    } catch {
+      return false;
     }
-    return false;
   });
 
   const matchedExisting = existingIndex >= 0 ? existingProviders[existingIndex] : undefined;
@@ -251,12 +249,10 @@ export function updateIdeSettings(options?: IdeSettingsOptions): IdeSettingsUpda
   );
 
   let targetMode = 0o600;
-  let initialMtimeMs = 0;
   if (fs.existsSync(targetPath)) {
     try {
       const stats = fs.statSync(targetPath);
       targetMode = stats.mode & 0o777;
-      initialMtimeMs = stats.mtimeMs;
     } catch {
       targetMode = 0o600;
     }
@@ -268,29 +264,6 @@ export function updateIdeSettings(options?: IdeSettingsOptions): IdeSettingsUpda
       fs.chmodSync(tmpPath, targetMode);
     } catch {
       // Ignore chmod error if filesystem does not support it
-    }
-
-    if (initialMtimeMs && fs.existsSync(targetPath)) {
-      try {
-        const currentMtime = fs.statSync(targetPath).mtimeMs;
-        if (currentMtime !== initialMtimeMs) {
-          const freshRaw = fs.readFileSync(targetPath, "utf-8");
-          const fresh = JSON.parse(freshRaw) as IdeSettings;
-          const freshProviders = Array.isArray(fresh["antigravity.ai.customProviders"])
-            ? fresh["antigravity.ai.customProviders"].filter(
-                (p) => p && typeof p === "object" && p.name !== cruiseProvider.name
-              )
-            : [];
-          freshProviders.push(cruiseProvider);
-          updatedSettings = { ...fresh, "antigravity.ai.customProviders": freshProviders };
-          fs.writeFileSync(tmpPath, JSON.stringify(updatedSettings, null, 2) + "\n", {
-            encoding: "utf-8",
-            mode: targetMode,
-          });
-        }
-      } catch {
-        // Proceed with rename if fresh check fails
-      }
     }
 
     fs.renameSync(tmpPath, targetPath);
@@ -315,20 +288,7 @@ export function updateIdeSettings(options?: IdeSettingsOptions): IdeSettingsUpda
   };
 }
 
-// Standalone execution runner
-const isDirectExecution = (): boolean => {
-  try {
-    if (process.argv[1]) {
-      const currentFilePath = fileURLToPath(import.meta.url);
-      return path.resolve(process.argv[1]) === path.resolve(currentFilePath);
-    }
-  } catch {
-    return false;
-  }
-  return false;
-};
-
-if (isDirectExecution()) {
+if (isDirectExecution(import.meta.url)) {
   const args = process.argv.slice(2);
   const options: IdeSettingsOptions = {};
 

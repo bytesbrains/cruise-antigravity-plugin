@@ -218,7 +218,7 @@ describe("Antigravity IDE Custom Provider Configuration & Settings UI Integratio
       expect(cruise.apiKey).toBe("${env:CRUISE_API_KEY}");
     });
 
-    it("updates existing BytesBrains Cruise entry in place if already present", () => {
+    it("updates existing BytesBrains Cruise entry in place when host matches", () => {
       fs.writeFileSync(
         tempIdeSettingsPath,
         JSON.stringify(
@@ -226,7 +226,7 @@ describe("Antigravity IDE Custom Provider Configuration & Settings UI Integratio
             "antigravity.ai.customProviders": [
               {
                 name: "BytesBrains Cruise",
-                baseUrl: "https://old-endpoint.net/v1",
+                baseUrl: "https://cruise.bytesbrains.net/v1",
                 apiKey: "${env:OLD_KEY}",
                 models: ["old-lane"],
                 customField: "keep-me",
@@ -252,7 +252,7 @@ describe("Antigravity IDE Custom Provider Configuration & Settings UI Integratio
       expect(cruise.customField).toBe("keep-me");
     });
 
-    it("preserves custom provider name when updating in place", () => {
+    it("preserves custom provider name when updating in place on same host", () => {
       fs.writeFileSync(
         tempIdeSettingsPath,
         JSON.stringify({
@@ -269,20 +269,56 @@ describe("Antigravity IDE Custom Provider Configuration & Settings UI Integratio
 
       updateIdeSettings({
         settingsPath: tempIdeSettingsPath,
-        baseUrl: "https://cruise-demo.bytesbrains.net",
+        baseUrl: "https://cruise.bytesbrains.net",
+        name: "My Custom Cruise Name",
+        models: ["bb/chat-assistant"],
       });
 
       const saved = JSON.parse(fs.readFileSync(tempIdeSettingsPath, "utf-8"));
       expect(saved["antigravity.ai.customProviders"]).toHaveLength(1);
       expect(saved["antigravity.ai.customProviders"][0].name).toBe("My Custom Cruise Name");
-      expect(saved["antigravity.ai.customProviders"][0].baseUrl).toBe("https://cruise-demo.bytesbrains.net/v1");
+      expect(saved["antigravity.ai.customProviders"][0].models).toEqual(["bb/chat-assistant"]);
     });
 
-    it("does not collide with providers on distinct hosts using substring matches", () => {
+    it("allows production and demo Cruise endpoints to coexist without overwriting each other", () => {
       fs.writeFileSync(
         tempIdeSettingsPath,
         JSON.stringify({
           "antigravity.ai.customProviders": [
+            {
+              name: "BytesBrains Cruise",
+              baseUrl: "https://cruise.bytesbrains.net/v1",
+              apiKey: "${env:CRUISE_API_KEY}",
+              models: ["bb/agentic-coding"],
+            },
+          ],
+        })
+      );
+
+      updateIdeSettings({
+        settingsPath: tempIdeSettingsPath,
+        baseUrl: "https://cruise-demo.bytesbrains.net",
+        name: "BytesBrains Cruise (Demo)",
+      });
+
+      const saved = JSON.parse(fs.readFileSync(tempIdeSettingsPath, "utf-8"));
+      expect(saved["antigravity.ai.customProviders"]).toHaveLength(2);
+      expect(saved["antigravity.ai.customProviders"][0].baseUrl).toBe("https://cruise.bytesbrains.net/v1");
+      expect(saved["antigravity.ai.customProviders"][1].baseUrl).toBe("https://cruise-demo.bytesbrains.net/v1");
+      expect(saved["antigravity.ai.customProviders"][1].name).toBe("BytesBrains Cruise (Demo)");
+    });
+
+    it("does not collide with providers on distinct hosts even with matching name or substring host", () => {
+      fs.writeFileSync(
+        tempIdeSettingsPath,
+        JSON.stringify({
+          "antigravity.ai.customProviders": [
+            {
+              name: "BytesBrains Cruise",
+              baseUrl: "https://api.openai.com/v1",
+              apiKey: "${env:OPENAI_API_KEY}",
+              models: ["gpt-4o"],
+            },
             {
               name: "Third Party Gateway",
               baseUrl: "https://cruise.bytesbrains.net.other-vendor.com/v1",
@@ -299,9 +335,11 @@ describe("Antigravity IDE Custom Provider Configuration & Settings UI Integratio
       });
 
       const saved = JSON.parse(fs.readFileSync(tempIdeSettingsPath, "utf-8"));
-      expect(saved["antigravity.ai.customProviders"]).toHaveLength(2);
-      expect(saved["antigravity.ai.customProviders"][0].name).toBe("Third Party Gateway");
-      expect(saved["antigravity.ai.customProviders"][1].name).toBe("BytesBrains Cruise");
+      expect(saved["antigravity.ai.customProviders"]).toHaveLength(3);
+      expect(saved["antigravity.ai.customProviders"][0].baseUrl).toBe("https://api.openai.com/v1");
+      expect(saved["antigravity.ai.customProviders"][1].name).toBe("Third Party Gateway");
+      expect(saved["antigravity.ai.customProviders"][2].name).toBe("BytesBrains Cruise");
+      expect(saved["antigravity.ai.customProviders"][2].baseUrl).toBe("https://cruise.bytesbrains.net/v1");
     });
 
     it("throws clear error when settings file contains invalid JSON", () => {
@@ -369,15 +407,16 @@ describe("Antigravity IDE Custom Provider Configuration & Settings UI Integratio
 
   describe("CLI Standalone Runner", () => {
     it("executes ide-config.ts standalone via tsx runner", () => {
-      const runner = path.join(ROOT, "node_modules/.bin/tsx");
+      const tsxCli = path.resolve(ROOT, "node_modules/tsx/dist/cli.mjs");
       const script = path.join(
         ROOT,
         "plugins/cruise/skills/setup/scripts/ide-config.ts"
       );
 
       const stdout = execFileSync(
-        runner,
+        process.execPath,
         [
+          tsxCli,
           script,
           "--settings-path",
           tempIdeSettingsPath,

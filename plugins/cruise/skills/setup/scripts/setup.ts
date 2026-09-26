@@ -3,8 +3,9 @@ import * as path from "node:path";
 import * as os from "node:os";
 import * as readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { fileURLToPath } from "node:url";
+import { isDirectExecution } from "./util.js";
 
+export * from "./types.js";
 import {
   type SetupWizardOptions,
   type ProbeResult,
@@ -14,16 +15,6 @@ import {
   DEFAULT_BASE_URL,
   DEFAULT_MODEL,
 } from "./types.js";
-
-export {
-  type SetupWizardOptions,
-  type ProbeResult,
-  type SettingsUpdateResult,
-  type ShellGuidanceResult,
-  type SetupWizardResult,
-  DEFAULT_BASE_URL,
-  DEFAULT_MODEL,
-};
 
 import { updateIdeSettings } from "./ide-config.js";
 
@@ -451,18 +442,7 @@ async function promptConfigureIde(rl: readline.Interface | null): Promise<boolea
   return answer.trim().toLowerCase() !== "n";
 }
 
-const isDirectExecution = (): boolean => {
-  try {
-    return Boolean(
-      process.argv[1] &&
-        path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))
-    );
-  } catch {
-    return false;
-  }
-};
-
-if (isDirectExecution()) {
+if (isDirectExecution(import.meta.url)) {
   const args = process.argv.slice(2);
   const options: SetupWizardOptions = {};
 
