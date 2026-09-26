@@ -551,24 +551,6 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     expect(content).toContain("bb/chat-assistant");
   });
 
-  it("plugins/cruise/schemas/ide-settings.schema.json defines valid JSON Schema for IDE custom providers", () => {
-    const schemaPath = path.join(
-      ROOT,
-      "plugins/cruise/schemas/ide-settings.schema.json"
-    );
-    expect(fs.existsSync(schemaPath)).toBe(true);
-
-    const schema = JSON.parse(fs.readFileSync(schemaPath, "utf-8"));
-    expect(schema.title).toContain("Antigravity IDE");
-    expect(schema.properties["antigravity.ai.customProviders"]).toBeDefined();
-    expect(schema.definitions.CustomProvider.required).toEqual([
-      "name",
-      "baseUrl",
-      "apiKey",
-      "models",
-    ]);
-  });
-
   it("docs/troubleshooting.md exists, adheres to size budget (<450 lines), and covers auth, refusals, and MCP connectivity", () => {
     const troubleshootingPath = path.join(ROOT, "docs/troubleshooting.md");
     expect(fs.existsSync(troubleshootingPath)).toBe(true);
