@@ -278,6 +278,32 @@ describe("Antigravity IDE Custom Provider Configuration & Settings UI Integratio
       expect(saved["antigravity.ai.customProviders"][0].baseUrl).toBe("https://cruise-demo.bytesbrains.net/v1");
     });
 
+    it("does not collide with providers on distinct hosts using substring matches", () => {
+      fs.writeFileSync(
+        tempIdeSettingsPath,
+        JSON.stringify({
+          "antigravity.ai.customProviders": [
+            {
+              name: "Third Party Gateway",
+              baseUrl: "https://cruise.bytesbrains.net.other-vendor.com/v1",
+              apiKey: "${env:THIRD_PARTY_KEY}",
+              models: ["vendor/model-a"],
+            },
+          ],
+        })
+      );
+
+      updateIdeSettings({
+        settingsPath: tempIdeSettingsPath,
+        baseUrl: "https://cruise.bytesbrains.net",
+      });
+
+      const saved = JSON.parse(fs.readFileSync(tempIdeSettingsPath, "utf-8"));
+      expect(saved["antigravity.ai.customProviders"]).toHaveLength(2);
+      expect(saved["antigravity.ai.customProviders"][0].name).toBe("Third Party Gateway");
+      expect(saved["antigravity.ai.customProviders"][1].name).toBe("BytesBrains Cruise");
+    });
+
     it("throws clear error when settings file contains invalid JSON", () => {
       fs.writeFileSync(tempIdeSettingsPath, "{ corrupted json: missing quotes }");
       expect(() =>

@@ -44,6 +44,10 @@ export const DEFAULT_IDE_MODELS = [
   "bb/fast",
 ];
 export const DEFAULT_IDE_API_KEY = "${env:CRUISE_API_KEY}";
+export const KNOWN_CRUISE_HOSTS = new Set([
+  "cruise.bytesbrains.net",
+  "cruise-demo.bytesbrains.net",
+]);
 
 /**
  * Resolves the absolute path to the target IDE settings.json file.
@@ -183,16 +187,33 @@ export function updateIdeSettings(options?: IdeSettingsOptions): IdeSettingsUpda
     ? [...existingSettings["antigravity.ai.customProviders"]]
     : [];
 
+  const targetBase = normalizeBaseUrl(options?.baseUrl);
+  const targetHost = (() => {
+    try {
+      return new URL(targetBase).hostname.toLowerCase();
+    } catch {
+      return "";
+    }
+  })();
+
   const targetName = options?.name?.trim();
-  const existingIndex = existingProviders.findIndex(
-    (p) =>
-      p &&
-      typeof p === "object" &&
-      (targetName
-        ? p.name === targetName
-        : p.name === DEFAULT_CRUISE_PROVIDER_NAME ||
-          (typeof p.baseUrl === "string" && p.baseUrl.includes("cruise.bytesbrains.net")))
-  );
+  const existingIndex = existingProviders.findIndex((p) => {
+    if (!p || typeof p !== "object") return false;
+    if (targetName) return p.name === targetName;
+    if (p.name === DEFAULT_CRUISE_PROVIDER_NAME) return true;
+    if (typeof p.baseUrl === "string") {
+      try {
+        const host = new URL(p.baseUrl).hostname.toLowerCase();
+        if (targetHost && host === targetHost) return true;
+        if (KNOWN_CRUISE_HOSTS.has(host) && (!targetHost || KNOWN_CRUISE_HOSTS.has(targetHost))) {
+          return true;
+        }
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  });
 
   const matchedExisting = existingIndex >= 0 ? existingProviders[existingIndex] : undefined;
   const resolvedName = targetName || matchedExisting?.name || DEFAULT_CRUISE_PROVIDER_NAME;
@@ -213,7 +234,7 @@ export function updateIdeSettings(options?: IdeSettingsOptions): IdeSettingsUpda
     existingProviders.push(cruiseProvider);
   }
 
-  const updatedSettings: IdeSettings = {
+  let updatedSettings: IdeSettings = {
     ...existingSettings,
     "antigravity.ai.customProviders": existingProviders,
   };
@@ -230,9 +251,12 @@ export function updateIdeSettings(options?: IdeSettingsOptions): IdeSettingsUpda
   );
 
   let targetMode = 0o600;
+  let initialMtimeMs = 0;
   if (fs.existsSync(targetPath)) {
     try {
-      targetMode = fs.statSync(targetPath).mode & 0o777;
+      const stats = fs.statSync(targetPath);
+      targetMode = stats.mode & 0o777;
+      initialMtimeMs = stats.mtimeMs;
     } catch {
       targetMode = 0o600;
     }
@@ -245,6 +269,30 @@ export function updateIdeSettings(options?: IdeSettingsOptions): IdeSettingsUpda
     } catch {
       // Ignore chmod error if filesystem does not support it
     }
+
+    if (initialMtimeMs && fs.existsSync(targetPath)) {
+      try {
+        const currentMtime = fs.statSync(targetPath).mtimeMs;
+        if (currentMtime !== initialMtimeMs) {
+          const freshRaw = fs.readFileSync(targetPath, "utf-8");
+          const fresh = JSON.parse(freshRaw) as IdeSettings;
+          const freshProviders = Array.isArray(fresh["antigravity.ai.customProviders"])
+            ? fresh["antigravity.ai.customProviders"].filter(
+                (p) => p && typeof p === "object" && p.name !== cruiseProvider.name
+              )
+            : [];
+          freshProviders.push(cruiseProvider);
+          updatedSettings = { ...fresh, "antigravity.ai.customProviders": freshProviders };
+          fs.writeFileSync(tmpPath, JSON.stringify(updatedSettings, null, 2) + "\n", {
+            encoding: "utf-8",
+            mode: targetMode,
+          });
+        }
+      } catch {
+        // Proceed with rename if fresh check fails
+      }
+    }
+
     fs.renameSync(tmpPath, targetPath);
   } catch (err) {
     if (fs.existsSync(tmpPath)) {
