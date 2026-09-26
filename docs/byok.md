@@ -162,6 +162,9 @@ When configuring subagents, prompt workflows, or IDE modes, map workloads to the
 | **Structured Extraction & Parsing** | `bb/extraction` | `bb/fast` | AST metadata extraction, log parsing, JSON schema enforcement, and tool call payload transformations. |
 | **Fast / Lightweight Subagent** (`flash_lite` / `flash`) | `bb/fast` | None | High-frequency formatting, lint fixes, commit message drafting, and minor utility tasks with minimal token cost. |
 
+> [!TIP]
+> **Dynamic Lane Inspection**: Type `/cruise-lane` or `/cruise-models` in Antigravity to dynamically inspect current member model health, capability matrices (`x-cruise.any_member`), context bounds, and pricing tiers across all available lanes. Switch models interactively using `/model <lane>` or adjust reasoning effort via `/effort <high|medium|low|none>`.
+
 ---
 
 ## 5. Security & Invariant Checklist
