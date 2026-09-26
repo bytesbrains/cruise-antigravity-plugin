@@ -1,8 +1,9 @@
 ---
 name: cruise
 description: >-
-  Guide optimal Cruise AI model routing lanes (bb/agentic-coding, bb/chat-assistant, bb/extraction, bb/fast),
-  inspect member capabilities (x-cruise.any_member), and diagnose refusals (distinguishing rate limits, period budget caps, and lifetime wallet exhaustion).
+  Use this skill when selecting or optimizing Cruise AI model routing lanes (bb/agentic-coding, bb/chat-assistant, bb/extraction, bb/fast),
+  when inspecting model capabilities (x-cruise.any_member), or when diagnosing and resolving Cruise gateway refusals
+  (including HTTP 429 rate limits and period budget caps, and HTTP 402 lifetime wallet exhaustion).
 ---
 
 # Cruise Lane Selection & Refusal Runbooks

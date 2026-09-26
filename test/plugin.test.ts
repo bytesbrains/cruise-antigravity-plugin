@@ -238,6 +238,8 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     expect(frontmatter).not.toBeNull();
     expect(frontmatter).toContain("name: cruise");
     expect(frontmatter).toContain("description:");
+    expect(frontmatter).toContain("HTTP 429 rate limits and period budget caps");
+    expect(frontmatter).toContain("HTTP 402 lifetime wallet exhaustion");
 
     // Verify all four core routing lanes
     expect(content).toContain("bb/agentic-coding");
@@ -457,6 +459,162 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
       expect(content).toContain(role);
     }
   });
+
+  it("mcp_config.json uses variable substitution and contains no raw Cruise or third-party API keys", () => {
+    const rawContent = fs.readFileSync(
+      path.join(ROOT, "plugins/cruise/mcp_config.json"),
+      "utf-8"
+    );
+
+    // Must use dynamic variable substitution
+    expect(rawContent).toContain("${CRUISE_API_KEY}");
+    expect(rawContent).toContain("${CRUISE_BASE_URL");
+
+    // Must contain no raw Cruise keys
+    expect(rawContent).not.toMatch(/cru_(live|test|demo|svc)_[A-Za-z0-9]+/);
+
+    // Must contain no third-party raw API keys
+    expect(rawContent).not.toMatch(/sk-[A-Za-z0-9]{20,}/); // OpenAI
+    expect(rawContent).not.toMatch(/sk-ant-[A-Za-z0-9]{20,}/); // Anthropic
+    expect(rawContent).not.toMatch(/AIza[0-9A-Za-z-_]{35}/); // Google
+    expect(rawContent).not.toMatch(/AKIA[0-9A-Z]{16}/); // AWS
+    expect(rawContent).not.toMatch(/gh[pousr]_[A-Za-z0-9_]{36,}/); // GitHub
+  });
+
+  it("enforces frontmatter conformance and progressive disclosure triggers across all SKILL.md files", () => {
+    const findSkillFiles = (dir: string): string[] => {
+      let results: string[] = [];
+      const list = fs.readdirSync(dir);
+      for (const file of list) {
+        if (file === "node_modules" || file === ".git") continue;
+        const filePath = path.join(dir, file);
+        const stat = fs.statSync(filePath);
+        if (stat && stat.isDirectory()) {
+          results = results.concat(findSkillFiles(filePath));
+        } else if (file === "SKILL.md") {
+          results.push(filePath);
+        }
+      }
+      return results;
+    };
+
+    const skillFiles = findSkillFiles(path.join(ROOT, "plugins"));
+    expect(skillFiles.length).toBeGreaterThanOrEqual(2);
+
+    for (const skillFile of skillFiles) {
+      const content = fs.readFileSync(skillFile, "utf-8");
+      const relativePath = path.relative(ROOT, skillFile);
+
+      // Verify YAML frontmatter delimiters
+      const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+      expect(
+        match,
+        `${relativePath} must contain valid YAML frontmatter between ---`
+      ).not.toBeNull();
+      const frontmatter = match![1];
+
+      // Extract name and description
+      const nameMatch = frontmatter.match(/name:\s*([a-zA-Z0-9_-]+)/);
+      expect(
+        nameMatch,
+        `${relativePath} frontmatter must contain a valid name`
+      ).not.toBeNull();
+      expect(nameMatch![1].length).toBeGreaterThan(0);
+
+      const descMatch = frontmatter.match(
+        /description:\s*(?:>-|>)?\r?\n?\s*([\s\S]*?)(?=\n[a-z]+:|$)/
+      );
+      expect(
+        descMatch,
+        `${relativePath} frontmatter must contain a description`
+      ).not.toBeNull();
+      const description = descMatch![1].replace(/\r?\n\s*/g, " ").trim();
+      expect(
+        description.length,
+        `${relativePath} description must be substantial`
+      ).toBeGreaterThan(20);
+
+      // Progressive disclosure: description must explain triggers/when to use
+      expect(
+        description.toLowerCase(),
+        `${relativePath} description must explain triggers for progressive disclosure`
+      ).toMatch(/when|use this skill|activate/);
+    }
+  });
+
+  it("enforces gitleaks hook presence, executable permissions, and security configuration", () => {
+    const preCommitPath = path.join(ROOT, ".githooks/pre-commit");
+    const prePushPath = path.join(ROOT, ".githooks/pre-push");
+    const gitleaksTomlPath = path.join(ROOT, ".gitleaks.toml");
+    const packageJsonPath = path.join(ROOT, "package.json");
+
+    expect(fs.existsSync(preCommitPath)).toBe(true);
+    expect(fs.existsSync(prePushPath)).toBe(true);
+    expect(fs.existsSync(gitleaksTomlPath)).toBe(true);
+
+    // Verify hooks are executable
+    fs.accessSync(preCommitPath, fs.constants.X_OK);
+    fs.accessSync(prePushPath, fs.constants.X_OK);
+
+    // Verify pre-commit invokes gitleaks protect on staged files with config
+    const preCommitContent = fs.readFileSync(preCommitPath, "utf-8");
+    expect(preCommitContent).toContain("gitleaks protect --staged");
+    expect(preCommitContent).toContain(".gitleaks.toml");
+
+    // Verify pre-push invokes gitleaks detect on full source history
+    const prePushContent = fs.readFileSync(prePushPath, "utf-8");
+    expect(prePushContent).toContain("gitleaks detect --source");
+    expect(prePushContent).toContain(".gitleaks.toml");
+    expect(prePushContent).toContain("is-shallow-repository");
+
+    // Verify package.json scripts and prepare hook
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+    expect(packageJson.scripts.prepare).toContain("core.hooksPath .githooks");
+    expect(packageJson.scripts["secrets:scan"]).toContain("gitleaks detect");
+    expect(packageJson.scripts["secrets:scan"]).toContain(".gitleaks.toml");
+
+    // Verify .gitleaks.toml defines custom cruise-key rule and extends defaults
+    const gitleaksToml = fs.readFileSync(gitleaksTomlPath, "utf-8");
+    expect(gitleaksToml).toContain("useDefault = true");
+    expect(gitleaksToml).toContain('id = "cruise-key"');
+    expect(gitleaksToml).toContain("cru_(live|test|demo|svc)_[A-Za-z0-9]{40}");
+
+    // Validate cruise-key regex behavior
+    const cruiseKeyRegex = /cru_(live|test|demo|svc)_[A-Za-z0-9]{40}/;
+    const mockFullLiveKey = ["cru", "live", "1".repeat(40)].join("_");
+    const mockFullDemoKey = ["cru", "demo", "a".repeat(40)].join("_");
+    const mockShortSafePrefix = "cru_live_...";
+    const mockDocPlaceholder = "cru_demo_...";
+
+    expect(cruiseKeyRegex.test(mockFullLiveKey)).toBe(true);
+    expect(cruiseKeyRegex.test(mockFullDemoKey)).toBe(true);
+    expect(cruiseKeyRegex.test(mockShortSafePrefix)).toBe(false);
+    expect(cruiseKeyRegex.test(mockDocPlaceholder)).toBe(false);
+  });
+
+  it("verifies CI workflow runs tests and secret scan on all PRs and pushes to main", () => {
+    const ciPath = path.join(ROOT, ".github/workflows/ci.yml");
+    expect(fs.existsSync(ciPath)).toBe(true);
+
+    const ciContent = fs.readFileSync(ciPath, "utf-8");
+
+    // Verify triggers
+    expect(ciContent).toContain("pull_request:");
+    expect(ciContent).toContain("push:");
+    expect(ciContent).toContain("branches: [main]");
+
+    // Verify all steps run
+    expect(ciContent).toContain("npm run typecheck");
+    expect(ciContent).toContain("npm test");
+    expect(ciContent).toContain("npm run secrets:scan");
+    expect(ciContent).toContain("gitleaks/gitleaks-action");
+
+    // Verify gitleaks install verifies SHA256 checksum and fails closed
+    expect(ciContent).toContain("curl --fail");
+    expect(ciContent).toContain("GITLEAKS_SHA256=");
+    expect(ciContent).toContain("sha256sum --check --strict");
+  });
 });
+
 
 
