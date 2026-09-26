@@ -20,6 +20,8 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     expect(pluginJson.description.length).toBeGreaterThan(0);
     expect(pluginJson.version).toBe(packageJson.version);
     expect(typeof pluginJson.author).toBe("string");
+    expect(pluginJson.skills).toBeDefined();
+    expect(pluginJson.skills).toContain("cruise-lane");
   });
 
   it("plugins/cruise/mcp_config.json defines remote MCP serverUrl and dynamic Authorization header", () => {
@@ -337,6 +339,68 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     }
   });
 
+  it("plugins/cruise/skills/lane/SKILL.md has valid frontmatter, progressive disclosure triggers, dynamic discovery, and model selection guidance", () => {
+    const laneSkillPath = path.join(ROOT, "plugins/cruise/skills/lane/SKILL.md");
+    expect(fs.existsSync(laneSkillPath)).toBe(true);
+
+    const content = fs.readFileSync(laneSkillPath, "utf-8");
+    const frontmatter = extractFrontmatter(content);
+    expect(frontmatter).not.toBeNull();
+    expect(frontmatter).toContain("name: cruise-lane");
+    expect(frontmatter).toContain("description:");
+
+    // Progressive disclosure triggers
+    expect(frontmatter).toContain("/cruise-lane");
+    expect(frontmatter).toContain("/cruise-models");
+    expect(frontmatter?.toLowerCase()).toMatch(/use this skill when|when/);
+
+    // MCP dynamic discovery tool
+    expect(content).toContain("list_models");
+    expect(content).toContain('"kind": "lanes"');
+    expect(content).toContain("/v1/models");
+
+    // All 4 canonical lanes
+    const lanes = [
+      "bb/agentic-coding",
+      "bb/chat-assistant",
+      "bb/extraction",
+      "bb/fast",
+    ];
+    for (const lane of lanes) {
+      expect(content).toContain(lane);
+    }
+
+    // Capability matrix & x-cruise metadata
+    expect(content).toContain("x-cruise.any_member");
+    expect(content).toContain("tools");
+    expect(content).toContain("streaming");
+    expect(content).toContain("vision");
+    expect(content).toContain("json_schema");
+
+    // Member model breakdown
+    expect(content).toContain("anthropic/claude-3-7-sonnet");
+    expect(content).toContain("openai/gpt-4o");
+
+    // Workload recommendations & interactive switching
+    expect(content).toContain("/model");
+    expect(content).toContain("/effort");
+    expect(content).toContain("settings.json");
+    expect(content).toContain("bb/agentic-coding");
+
+    // Referenced scripts exist and are executable
+    const laneTsPath = path.join(
+      ROOT,
+      "plugins/cruise/skills/lane/scripts/lane.ts"
+    );
+    const laneShPath = path.join(
+      ROOT,
+      "plugins/cruise/skills/lane/scripts/lane.sh"
+    );
+    expect(fs.existsSync(laneTsPath)).toBe(true);
+    expect(fs.existsSync(laneShPath)).toBe(true);
+    fs.accessSync(laneShPath, fs.constants.X_OK);
+  });
+
   it("assets directory contains all required logo files", () => {
     const assetsDir = path.join(ROOT, "assets");
     expect(fs.existsSync(assetsDir)).toBe(true);
@@ -589,7 +653,7 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     };
 
     const skillFiles = findSkillFiles(path.join(ROOT, "plugins"));
-    expect(skillFiles.length).toBeGreaterThanOrEqual(2);
+    expect(skillFiles.length).toBeGreaterThanOrEqual(3);
 
     for (const skillFile of skillFiles) {
       const content = fs.readFileSync(skillFile, "utf-8");

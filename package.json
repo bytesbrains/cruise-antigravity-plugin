@@ -18,6 +18,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "setup": "tsx ./plugins/cruise/skills/setup/scripts/setup.ts",
+    "lanes": "tsx ./plugins/cruise/skills/lane/scripts/lane.ts",
     "secrets:scan": "gitleaks detect --source . --redact --no-banner --config .gitleaks.toml"
   },
   "devDependencies": {

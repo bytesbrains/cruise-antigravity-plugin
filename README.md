@@ -96,6 +96,7 @@ The plugin is enabled by default upon discovery. It can be toggled using either 
 Run the interactive setup wizard in Antigravity or via terminal:
 
 - **Inside Antigravity**: Type `/cruise-setup` to trigger the interactive onboarding wizard.
+- **Model Lanes & Selection**: Type `/cruise-lane` or `/cruise-models` (or run `npm run lanes`) to dynamically inspect capability matrices, context limits, pricing, and switch active session models (`/model`).
 - **Via CLI**: Run `npm run setup` or `./plugins/cruise/skills/setup/scripts/setup.sh`.
 
 Or configure manually by setting your Cruise API key in your environment:

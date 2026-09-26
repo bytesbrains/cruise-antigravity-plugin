@@ -2,5 +2,10 @@
   "name": "cruise",
   "description": "BytesBrains Cruise plugin for Google Antigravity (IDE & agy CLI) — skills, rules, and MCP budget tools.",
   "version": "0.1.0",
-  "author": "BytesBrains Pte. Ltd."
+  "author": "BytesBrains Pte. Ltd.",
+  "skills": [
+    "cruise",
+    "cruise-setup",
+    "cruise-lane"
+  ]
 }

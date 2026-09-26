@@ -99,6 +99,9 @@ Cruise routes traffic through virtual lanes rather than hardcoded snapshots. You
 #### Example Prompt:
 > *"What model routing lanes are available on Cruise right now, and which ones support tools and streaming?"*
 
+> [!TIP]
+> **Slash Command Shortcut**: You can also type `/cruise-lane` or `/cruise-models` to trigger the lane inspection runbook directly, formatting capability matrices, context limits, pricing, and interactive model switching commands (`/model <lane>`, `/effort <level>`).
+
 #### What Happens Under the Hood:
 Antigravity invokes the `list_models` MCP tool:
 ```json
