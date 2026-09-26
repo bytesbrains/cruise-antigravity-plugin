@@ -31,6 +31,9 @@ Every request sent through Cruise is governed by project budgets, prepaid organi
 
 The Antigravity CLI (`agy`) can route its inference sessions through Cruise by configuring the runtime environment or user-level settings.
 
+> [!TIP]
+> **Automated Setup Wizard**: Use `/cruise-setup` inside Antigravity or run `npm run setup` in your terminal to automatically validate credentials and configure `~/.gemini/antigravity-cli/settings.json`.
+
 ### Option A: Environment Variable Configuration (Recommended)
 
 Set the OpenAI-compatible environment variables before launching `agy`:

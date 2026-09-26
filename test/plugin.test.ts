@@ -291,9 +291,34 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     expect(content).toContain("401");
     expect(content).toContain("403");
 
+    // Verify /cruise-setup interactive wizard, validation probe, and settings persistence
+    expect(content).toContain("/cruise-setup");
+    expect(content).toContain("/v1/models");
+    expect(content).toContain("~/.gemini/antigravity-cli/settings.json");
+    expect(content).toContain("modelProvider");
+    expect(content).toContain("openaiBaseUrl");
+    expect(content).toContain("openaiApiKey");
+    expect(content).toContain("~/.zshrc");
+    expect(content).toContain("~/.bashrc");
+    expect(content).toContain("setup.ts");
+    expect(content).toContain("setup.sh");
+
     // Verify paths referenced in setup skill resolve to existing repository files
     const referencedMcpConfig = path.join(ROOT, "plugins/cruise/mcp_config.json");
     expect(fs.existsSync(referencedMcpConfig)).toBe(true);
+
+    const referencedSetupTs = path.join(
+      ROOT,
+      "plugins/cruise/skills/setup/scripts/setup.ts"
+    );
+    expect(fs.existsSync(referencedSetupTs)).toBe(true);
+
+    const referencedSetupSh = path.join(
+      ROOT,
+      "plugins/cruise/skills/setup/scripts/setup.sh"
+    );
+    expect(fs.existsSync(referencedSetupSh)).toBe(true);
+    fs.accessSync(referencedSetupSh, fs.constants.X_OK);
 
     // Verify consistency of all 4 lanes between skills and AGENTS.md rules
     const rulesContent = fs.readFileSync(

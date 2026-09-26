@@ -2,6 +2,7 @@
   "name": "cruise-antigravity-plugin",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "The BytesBrains Cruise plugin for Google Antigravity (IDE & agy CLI) — skills, rules, and MCP budget tools.",
   "license": "Apache-2.0",
   "repository": {
@@ -16,6 +17,7 @@
     "typecheck": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
+    "setup": "node ./plugins/cruise/skills/setup/scripts/setup.ts",
     "secrets:scan": "gitleaks detect --source . --redact --no-banner --config .gitleaks.toml"
   },
   "devDependencies": {
