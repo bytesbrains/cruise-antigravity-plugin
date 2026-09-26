@@ -11,9 +11,12 @@ import {
   formatWorkloadRecommendations,
   formatCliSwitchGuidance,
   formatCliTable,
+  getDefaultSettingsPath,
   switchActiveModel,
   runLaneDiscovery,
 } from "../plugins/cruise/skills/lane/scripts/lane";
+
+const MOCK_API_KEY = "cru_test_mock_lane_key";
 
 describe("Cruise Model Lane Discovery & Selection Helper", () => {
   let tempDir: string;
@@ -207,7 +210,7 @@ describe("Cruise Model Lane Discovery & Selection Helper", () => {
 
       const result = await fetchLanes({
         baseUrl: "https://cruise.bytesbrains.net",
-        apiKey: "cru_live_mock",
+        apiKey: MOCK_API_KEY,
         fetchFn: mockFetch as unknown as typeof fetch,
       });
 
@@ -216,13 +219,71 @@ describe("Cruise Model Lane Discovery & Selection Helper", () => {
         expect.objectContaining({
           method: "GET",
           headers: expect.objectContaining({
-            Authorization: "Bearer cru_live_mock",
+            Authorization: `Bearer ${MOCK_API_KEY}`,
           }),
         })
       );
       expect(result.isLive).toBe(true);
       expect(result.lanes).toHaveLength(1);
       expect(result.lanes[0].id).toBe("bb/agentic-coding");
+    });
+
+    it("queries Cruise MCP server endpoint via JSON-RPC tools/call (list_models) when preferMcp is enabled", async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          jsonrpc: "2.0",
+          id: 1,
+          result: {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  lanes: [
+                    {
+                      id: "bb/agentic-coding",
+                      "x-cruise": {
+                        members: ["anthropic/claude-3-7-sonnet", "openai/gpt-4o"],
+                        any_member: { tools: true, streaming: true, vision: true, json_schema: true },
+                        pricing: { prompt_per_m: "$3.00", completion_per_m: "$15.00", cost_tier: "Premium" },
+                        context_bounds: { max_input_tokens: 200000, max_output_tokens: 8192 },
+                      },
+                    },
+                  ],
+                }),
+              },
+            ],
+          },
+        }),
+      });
+
+      const result = await fetchLanes({
+        baseUrl: "https://cruise.bytesbrains.net",
+        apiKey: MOCK_API_KEY,
+        preferMcp: true,
+        fetchFn: mockFetch as unknown as typeof fetch,
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://cruise.bytesbrains.net/mcp",
+        expect.objectContaining({
+          method: "POST",
+          headers: expect.objectContaining({
+            Authorization: `Bearer ${MOCK_API_KEY}`,
+            "Content-Type": "application/json",
+          }),
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "tools/call",
+            params: { name: "list_models", arguments: { kind: "lanes" } },
+          }),
+        })
+      );
+      expect(result.isLive).toBe(true);
+      expect(result.source).toBe("mcp");
+      expect(result.lanes[0].id).toBe("bb/agentic-coding");
+      expect(result.lanes[0].capabilities.tools).toBe(true);
     });
 
     it("falls back gracefully to DEFAULT_LANES on network or HTTP error", async () => {
@@ -325,6 +386,26 @@ describe("Cruise Model Lane Discovery & Selection Helper", () => {
     });
   });
 
+  describe("getDefaultSettingsPath", () => {
+    it("constructs settings.json path under ~/.gemini/antigravity-cli", () => {
+      const settingsPath = getDefaultSettingsPath();
+      expect(settingsPath).toBe(
+        path.join(os.homedir(), ".gemini", "antigravity-cli", "settings.json")
+      );
+    });
+
+    it("handles custom homedir injection cleanly", () => {
+      expect(getDefaultSettingsPath(() => "/custom/user/home")).toBe(
+        path.join("/custom/user/home", ".gemini", "antigravity-cli", "settings.json")
+      );
+    });
+
+    it("handles empty homedir string without throwing errors", () => {
+      const resolved = getDefaultSettingsPath(() => "");
+      expect(resolved).toBe(path.join("", ".gemini", "antigravity-cli", "settings.json"));
+    });
+  });
+
   describe("switchActiveModel", () => {
     it("creates settings file and sets active model when file does not exist", () => {
       const result = switchActiveModel({
@@ -372,6 +453,38 @@ describe("Cruise Model Lane Discovery & Selection Helper", () => {
       expect(saved.model).toBe("bb/chat-assistant");
       expect(saved.modelProvider).toBe("openai");
       expect(saved.customSetting).toBe("keep-me");
+    });
+
+    it("refuses to overwrite settings when file contains invalid JSON", () => {
+      fs.mkdirSync(path.dirname(tempSettingsPath), { recursive: true });
+      fs.writeFileSync(tempSettingsPath, "{ corrupted-json-not-valid !!!");
+
+      const result = switchActiveModel({
+        model: "bb/fast",
+        settingsPath: tempSettingsPath,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/contains invalid JSON.*Refusing to overwrite/);
+      expect(fs.readFileSync(tempSettingsPath, "utf-8")).toBe("{ corrupted-json-not-valid !!!");
+    });
+
+    it("bootstraps modelProvider, openaiBaseUrl, and openaiApiKey when missing in existing settings", () => {
+      fs.mkdirSync(path.dirname(tempSettingsPath), { recursive: true });
+      fs.writeFileSync(tempSettingsPath, JSON.stringify({ customTool: true }));
+
+      const result = switchActiveModel({
+        model: "bb/agentic-coding",
+        settingsPath: tempSettingsPath,
+      });
+
+      expect(result.success).toBe(true);
+      const saved = JSON.parse(fs.readFileSync(tempSettingsPath, "utf-8"));
+      expect(saved.model).toBe("bb/agentic-coding");
+      expect(saved.modelProvider).toBe("openai");
+      expect(saved.openaiBaseUrl).toBe("https://cruise.bytesbrains.net/v1");
+      expect(saved.openaiApiKey).toBe("${CRUISE_API_KEY}");
+      expect(saved.customTool).toBe(true);
     });
   });
 
