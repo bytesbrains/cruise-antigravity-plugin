@@ -1,6 +1,6 @@
 {
   "name": "cruise-antigravity-plugin",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "The BytesBrains Cruise plugin for Google Antigravity (IDE & agy CLI) — skills, rules, and MCP budget tools.",
