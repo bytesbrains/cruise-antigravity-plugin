@@ -61,8 +61,33 @@ Automatically write or update `~/.gemini/antigravity-cli/settings.json` to route
 
 *Note: `<CRUISE_BASE_URL>` resolves to `https://cruise.bytesbrains.net` (or the custom URL entered in Step 1). Do not include a trailing slash.*
 
-### Step 4: Shell Profile Export Guidance
-Instruct the user to export their key in their shell startup profile so every new terminal session inherits the credentials:
+### Step 4: Automated Antigravity IDE Settings UI Configuration
+Automatically configure custom provider settings in Antigravity IDE (`~/.gemini/settings.json` or workspace `.gemini/settings.json` / `.vscode/settings.json`):
+
+```json
+{
+  "antigravity.ai.customProviders": [
+    {
+      "name": "BytesBrains Cruise",
+      "baseUrl": "<CRUISE_BASE_URL>/v1",
+      "apiKey": "${env:CRUISE_API_KEY}",
+      "models": [
+        "bb/agentic-coding",
+        "bb/chat-assistant",
+        "bb/extraction",
+        "bb/fast"
+      ]
+    }
+  ]
+}
+```
+
+- **Settings UI Accessibility**: Registers cleanly in the graphical Settings UI under **Settings > AI Models > Custom Provider**.
+- **Model Selector Dropdown**: Registered virtual lanes (`bb/agentic-coding`, `bb/chat-assistant`, `bb/extraction`, `bb/fast`) appear directly in the IDE chat dropdown selector.
+- **Zero-Secret Invariant**: Uses `${env:CRUISE_API_KEY}` dynamic environment variable expansion — never persists raw API keys to disk.
+
+### Step 5: Shell Profile Export Guidance
+Instruct the user to export their key in their shell startup profile so every new terminal session and IDE process inherits the credentials:
 
 - **Zsh (`~/.zshrc`)**:
   ```sh
@@ -80,18 +105,21 @@ Instruct the user to export their key in their shell startup profile so every ne
   ```
   Reload: `source ~/.bashrc`
 
-### Step 5: Executing via Bundled Setup Helper
+### Step 6: Executing via Bundled Setup Helper
 Alternatively, invoke the automated TypeScript / Bash setup wizard directly:
 
 ```sh
-# Via Node.js (interactive)
+# Via Node.js / tsx
 node plugins/cruise/skills/setup/scripts/setup.ts
 
-# Via Bash script
+# Via Bash launcher script
 ./plugins/cruise/skills/setup/scripts/setup.sh
 
-# Or via npm script
+# Automated setup for CLI and IDE (interactive wizard)
 npm run setup
+
+# Standalone IDE custom provider auto-configuration
+npm run setup:ide
 ```
 
 ---

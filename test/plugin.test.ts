@@ -297,6 +297,7 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     expect(content).toContain("/cruise-setup");
     expect(content).toContain("/v1/models");
     expect(content).toContain("~/.gemini/antigravity-cli/settings.json");
+    expect(content).toContain("antigravity.ai.customProviders");
     expect(content).toContain("modelProvider");
     expect(content).toContain("openaiBaseUrl");
     expect(content).toContain("openaiApiKey");
@@ -488,6 +489,7 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     // Section 2: Antigravity IDE Integration
     expect(content).toContain("Antigravity IDE");
     expect(content).toMatch(/Custom Provider|OpenAI Compatible/i);
+    expect(content).toContain("antigravity.ai.customProviders");
 
     // Section 3: Demo Rehearsal Guide
     expect(content).toContain("https://cruise-demo.bytesbrains.net");
@@ -539,6 +541,7 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     expect(content).toContain(".agents/plugins/cruise");
     expect(content).toContain("~/.gemini/config/plugins/cruise");
     expect(content).toContain("CRUISE_API_KEY");
+    expect(content).toContain("antigravity.ai.customProviders");
 
     // Core MCP tool walkthrough prompts
     expect(content).toContain("list_models");
@@ -546,6 +549,24 @@ describe("Antigravity Cruise Plugin Manifest & Directory Layout", () => {
     expect(content).toContain("get_budget");
     expect(content).toContain("bb/agentic-coding");
     expect(content).toContain("bb/chat-assistant");
+  });
+
+  it("plugins/cruise/schemas/ide-settings.schema.json defines valid JSON Schema for IDE custom providers", () => {
+    const schemaPath = path.join(
+      ROOT,
+      "plugins/cruise/schemas/ide-settings.schema.json"
+    );
+    expect(fs.existsSync(schemaPath)).toBe(true);
+
+    const schema = JSON.parse(fs.readFileSync(schemaPath, "utf-8"));
+    expect(schema.title).toContain("Antigravity IDE");
+    expect(schema.properties["antigravity.ai.customProviders"]).toBeDefined();
+    expect(schema.definitions.CustomProvider.required).toEqual([
+      "name",
+      "baseUrl",
+      "apiKey",
+      "models",
+    ]);
   });
 
   it("docs/troubleshooting.md exists, adheres to size budget (<450 lines), and covers auth, refusals, and MCP connectivity", () => {

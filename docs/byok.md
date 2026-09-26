@@ -78,7 +78,39 @@ Inside an active `agy` session:
 
 Antigravity IDE (and the Antigravity 2.0 desktop application) supports custom OpenAI-compatible providers for agent and sidebar chat.
 
-### Step-by-Step Configuration
+### Automated Custom Provider Configuration
+
+You can automatically configure Antigravity IDE custom provider settings via the bundled setup helper:
+
+```sh
+# Auto-configure IDE settings
+npm run setup:ide
+
+# Or run the interactive setup wizard (configures both CLI and IDE)
+npm run setup
+```
+
+This writes or non-destructively merges the provider definition into `~/.gemini/settings.json` (or workspace `.gemini/settings.json` / `.vscode/settings.json`):
+
+```json
+{
+  "antigravity.ai.customProviders": [
+    {
+      "name": "BytesBrains Cruise",
+      "baseUrl": "https://cruise.bytesbrains.net/v1",
+      "apiKey": "${env:CRUISE_API_KEY}",
+      "models": [
+        "bb/agentic-coding",
+        "bb/chat-assistant",
+        "bb/extraction",
+        "bb/fast"
+      ]
+    }
+  ]
+}
+```
+
+### Manual Graphical UI Configuration
 
 1. **Open Settings**:
    - Press <kbd>Cmd</kbd>+<kbd>,</kbd> (macOS) or <kbd>Ctrl</kbd>+<kbd>,</kbd> (Linux/Windows).

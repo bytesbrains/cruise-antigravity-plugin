@@ -81,6 +81,42 @@ export CRUISE_API_KEY="cru_demo_..."
 > [!IMPORTANT]
 > Never commit raw API keys to files, git history, or settings files. The plugin strictly relies on dynamic `${CRUISE_API_KEY}` substitution.
 
+### Automated Antigravity IDE Settings Configuration
+
+You can automatically configure Antigravity IDE to route model completions through Cruise and display virtual lanes in the chat dropdown:
+
+```sh
+# Run the automated IDE configuration helper
+npm run setup:ide
+
+# Or run the interactive setup wizard (configures both CLI and IDE)
+npm run setup
+```
+
+This writes or non-destructively updates `~/.gemini/settings.json` (or workspace `.gemini/settings.json`):
+
+```json
+{
+  "antigravity.ai.customProviders": [
+    {
+      "name": "BytesBrains Cruise",
+      "baseUrl": "https://cruise.bytesbrains.net/v1",
+      "apiKey": "${env:CRUISE_API_KEY}",
+      "models": [
+        "bb/agentic-coding",
+        "bb/chat-assistant",
+        "bb/extraction",
+        "bb/fast"
+      ]
+    }
+  ]
+}
+```
+
+- **Settings UI Accessibility**: The provider registers cleanly in the graphical Settings UI under **Settings > AI Models > Custom Provider**.
+- **Model Selector Dropdown**: Registered virtual lanes (`bb/agentic-coding`, `bb/chat-assistant`, `bb/extraction`, `bb/fast`) appear directly in the IDE chat dropdown selector.
+- **Zero-Secret Invariant**: Uses `${env:CRUISE_API_KEY}` dynamic environment variable expansion — never persists raw API keys to disk.
+
 ---
 
 ## 3. Example Prompts & Walkthroughs
