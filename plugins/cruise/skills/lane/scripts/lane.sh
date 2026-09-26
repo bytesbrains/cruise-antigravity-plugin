@@ -3,10 +3,20 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
+
+# Resolve repository root by walking up until package.json is found
+CURRENT_DIR="$SCRIPT_DIR"
+ROOT_DIR=""
+while [ "$CURRENT_DIR" != "/" ]; do
+  if [ -f "$CURRENT_DIR/package.json" ]; then
+    ROOT_DIR="$CURRENT_DIR"
+    break
+  fi
+  CURRENT_DIR="$(dirname "$CURRENT_DIR")"
+done
 
 # Prioritize local project tsx runner, then global tsx, then npx tsx, then node
-if [ -x "$ROOT_DIR/node_modules/.bin/tsx" ]; then
+if [ -n "$ROOT_DIR" ] && [ -x "$ROOT_DIR/node_modules/.bin/tsx" ]; then
   exec "$ROOT_DIR/node_modules/.bin/tsx" "$SCRIPT_DIR/lane.ts" "$@"
 elif command -v tsx >/dev/null 2>&1; then
   exec tsx "$SCRIPT_DIR/lane.ts" "$@"

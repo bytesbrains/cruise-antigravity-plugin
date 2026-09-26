@@ -23,6 +23,67 @@ export * from "./types";
 export * from "./formatters";
 
 /**
+ * Normalizes and validates the Cruise Base URL, preventing SSRF attacks.
+ * Enforces http/https protocol and blocks credentials in URLs.
+ */
+export function normalizeBaseUrl(rawUrl?: string): string {
+  if (!rawUrl || rawUrl.trim().length === 0) {
+    return DEFAULT_BASE_URL;
+  }
+
+  let cleaned = rawUrl.trim().replace(/\/+$/, "");
+  if (cleaned.endsWith("/v1")) {
+    cleaned = cleaned.slice(0, -3).replace(/\/+$/, "");
+  }
+
+  if (cleaned.includes("://")) {
+    if (!cleaned.startsWith("http://") && !cleaned.startsWith("https://")) {
+      return DEFAULT_BASE_URL;
+    }
+  } else {
+    if (cleaned.startsWith("localhost") || cleaned.startsWith("127.0.0.1")) {
+      cleaned = `http://${cleaned}`;
+    } else {
+      cleaned = `https://${cleaned}`;
+    }
+  }
+
+  try {
+    const parsed = new URL(cleaned);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      return DEFAULT_BASE_URL;
+    }
+    if (parsed.username || parsed.password) {
+      return DEFAULT_BASE_URL;
+    }
+    return `${parsed.protocol}//${parsed.host}${parsed.pathname === "/" ? "" : parsed.pathname}`;
+  } catch {
+    return DEFAULT_BASE_URL;
+  }
+}
+
+/**
+ * Safely parses numeric token context bounds, handling numbers or strings like "200k"
+ * without producing NaN.
+ */
+function parseContextBound(raw: unknown, fallback: number): number {
+  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+    return raw;
+  }
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    const kMatch = trimmed.match(/^(\d+(?:\.\d+)?)\s*k$/i);
+    if (kMatch) {
+      const val = parseFloat(kMatch[1]) * 1000;
+      if (Number.isFinite(val) && val > 0) return Math.round(val);
+    }
+    const val = Number(trimmed);
+    if (Number.isFinite(val) && val > 0) return Math.round(val);
+  }
+  return fallback;
+}
+
+/**
  * Parses raw API response data (OpenAI /v1/models or MCP list_models payload)
  * into a strongly typed array of LaneInfo objects.
  */
@@ -42,9 +103,13 @@ export function parseLanesFromApiResponse(payload: unknown): LaneInfo[] {
         if (item && typeof item === "object" && "text" in item) {
           try {
             const parsed = JSON.parse(String((item as { text: unknown }).text));
-            return parseLanesFromApiResponse(parsed);
+            const subLanes = parseLanesFromApiResponse(parsed);
+            // Only return early if this content block actually contained parsed entries
+            if (subLanes !== DEFAULT_LANES && subLanes.length > 0) {
+              return subLanes;
+            }
           } catch {
-            // ignore JSON parse error on non-json text content
+            // continue looking through subsequent content items
           }
         }
       }
@@ -97,8 +162,14 @@ export function parseLanesFromApiResponse(payload: unknown): LaneInfo[] {
     const cost_tier = String(pricingRaw.cost_tier || defaultMatch?.pricing.cost_tier || "Standard");
 
     const boundsRaw = (xCruise.context_bounds || {}) as Record<string, unknown>;
-    const max_input_tokens = Number(boundsRaw.max_input_tokens || defaultMatch?.context_bounds.max_input_tokens || 128000);
-    const max_output_tokens = Number(boundsRaw.max_output_tokens || defaultMatch?.context_bounds.max_output_tokens || 4096);
+    const max_input_tokens = parseContextBound(
+      boundsRaw.max_input_tokens,
+      defaultMatch?.context_bounds.max_input_tokens || 128000
+    );
+    const max_output_tokens = parseContextBound(
+      boundsRaw.max_output_tokens,
+      defaultMatch?.context_bounds.max_output_tokens || 4096
+    );
 
     const name = defaultMatch?.name || id.replace(/^bb\//, "").replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
     const description = defaultMatch?.description || String(entry.description || "Cruise dynamic routing lane");
@@ -132,9 +203,7 @@ export async function fetchLanes(options: FetchLanesOptions = {}): Promise<{
   source: "mcp" | "rest" | "default";
 }> {
   const fetcher = options.fetchFn || globalThis.fetch;
-  const baseUrl = (options.baseUrl || process.env.CRUISE_BASE_URL || DEFAULT_BASE_URL)
-    .replace(/\/+$/, "")
-    .replace(/\/v1$/, "");
+  const baseUrl = normalizeBaseUrl(options.baseUrl || process.env.CRUISE_BASE_URL);
   const apiKey = options.apiKey || process.env.CRUISE_API_KEY;
 
   if (!fetcher) {
@@ -146,7 +215,7 @@ export async function fetchLanes(options: FetchLanesOptions = {}): Promise<{
     authHeaders.Authorization = `Bearer ${apiKey}`;
   }
 
-  // 1. Try MCP JSON-RPC tools/call (list_models) first if requested or configured
+  // 1. Try MCP JSON-RPC tools/call (list_models) first if requested
   if (options.preferMcp) {
     const mcpEndpoint = `${baseUrl}/mcp`;
     try {
@@ -168,9 +237,21 @@ export async function fetchLanes(options: FetchLanesOptions = {}): Promise<{
 
       if (mcpRes.ok) {
         const mcpData = await mcpRes.json();
-        const lanes = parseLanesFromApiResponse(mcpData);
-        if (lanes.length > 0) {
-          return { lanes, isLive: true, endpoint: mcpEndpoint, source: "mcp" };
+        // Verify payload actually contains lane entries before declaring live MCP source
+        const rawRes = (mcpData as Record<string, unknown>)?.result ?? mcpData;
+        const resObj = rawRes as Record<string, unknown>;
+        const hasLiveEntries = Boolean(
+          (Array.isArray(resObj?.lanes) && resObj.lanes.length > 0) ||
+          (Array.isArray(resObj?.data) && resObj.data.length > 0) ||
+          (Array.isArray(resObj?.models) && resObj.models.length > 0) ||
+          (Array.isArray(resObj?.content) && resObj.content.length > 0)
+        );
+
+        if (hasLiveEntries) {
+          const lanes = parseLanesFromApiResponse(mcpData);
+          if (lanes !== DEFAULT_LANES && lanes.length > 0) {
+            return { lanes, isLive: true, endpoint: mcpEndpoint, source: "mcp" };
+          }
         }
       }
     } catch {
@@ -194,7 +275,9 @@ export async function fetchLanes(options: FetchLanesOptions = {}): Promise<{
     if (res.ok) {
       const data = await res.json();
       const lanes = parseLanesFromApiResponse(data);
-      return { lanes, isLive: true, endpoint: restEndpoint, source: "rest" };
+      if (lanes !== DEFAULT_LANES && lanes.length > 0) {
+        return { lanes, isLive: true, endpoint: restEndpoint, source: "rest" };
+      }
     }
   } catch {
     // Non-fatal fallback to default lanes
@@ -212,14 +295,35 @@ export function getDefaultSettingsPath(homedirFn: () => string = os.homedir): st
 }
 
 /**
+ * Validates if a model name is a valid lane alias or identifier.
+ */
+export function isValidLaneIdentifier(model: string): boolean {
+  if (!model || typeof model !== "string" || model.trim().length === 0) {
+    return false;
+  }
+  const trimmed = model.trim();
+  return DEFAULT_LANES.some((l) => l.id === trimmed) || /^bb\/[a-z0-9_-]+$/.test(trimmed);
+}
+
+/**
  * Updates the active model in ~/.gemini/antigravity-cli/settings.json.
- * Validates JSON structure first and refuses to overwrite corrupted files.
+ * Validates model identifier and JSON structure first, refusing to overwrite corrupted files.
  * Bootstraps missing provider/base URL settings if updating fresh configurations.
  */
 export function switchActiveModel(options: SwitchModelOptions): SwitchModelResult {
   const targetPath = options.settingsPath || getDefaultSettingsPath();
   const dir = path.dirname(targetPath);
-  const baseUrl = (options.baseUrl || DEFAULT_BASE_URL).replace(/\/+$/, "").replace(/\/v1$/, "");
+  const baseUrl = normalizeBaseUrl(options.baseUrl || process.env.CRUISE_BASE_URL);
+
+  if (!isValidLaneIdentifier(options.model)) {
+    return {
+      success: false,
+      settingsPath: targetPath,
+      newModel: options.model,
+      updatedSettings: {},
+      error: `Invalid or unrecognized model lane "${options.model}". Must be a valid lane ID (e.g. bb/agentic-coding, bb/chat-assistant, bb/extraction, bb/fast).`,
+    };
+  }
 
   let settings: Record<string, unknown> = {};
   let previousModel: string | undefined;
@@ -241,7 +345,9 @@ export function switchActiveModel(options: SwitchModelOptions): SwitchModelResul
         error: errorMessage,
       };
     }
-  } else if (!fs.existsSync(dir)) {
+  }
+
+  if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
 
@@ -275,7 +381,11 @@ export function switchActiveModel(options: SwitchModelOptions): SwitchModelResul
 /**
  * Main execution runner for CLI usage.
  */
-export async function runLaneDiscovery(argv: string[] = process.argv.slice(2)): Promise<void> {
+export async function runLaneDiscovery(
+  argv: string[] = process.argv.slice(2),
+  env: NodeJS.ProcessEnv = process.env,
+  settingsPath?: string
+): Promise<void> {
   const isJson = argv.includes("--json");
   const isMarkdown = argv.includes("--markdown");
   const preferMcp = argv.includes("--mcp");
@@ -290,7 +400,11 @@ export async function runLaneDiscovery(argv: string[] = process.argv.slice(2)): 
       console.error(`Error: Unknown lane "${selectedLane}". Available: ${lanes.map((l) => l.id).join(", ")}`);
       process.exit(1);
     }
-    const switchResult = switchActiveModel({ model: selectedLane });
+    const switchResult = switchActiveModel({
+      model: selectedLane,
+      baseUrl: env.CRUISE_BASE_URL,
+      settingsPath,
+    });
     if (!switchResult.success) {
       console.error(`Error updating settings: ${switchResult.error}`);
       process.exit(1);
